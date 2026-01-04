@@ -50,7 +50,9 @@ async function runPackageScript(
 			.quiet()
 			.nothrow();
 
-		const output = result.text();
+		const stdout = result.text();
+		const stderr = result.stderr.toString();
+		const output = stdout + (stderr ? (stdout ? "\n" : "") + stderr : "");
 		const success = result.exitCode === 0;
 		const duration = Math.round(performance.now() - start);
 
@@ -200,7 +202,7 @@ export async function runBunAction(
 
 				if (!result.success) {
 					totalSuccess = false;
-					logs.push(`    Error: ${result.output.split("\n")[0]}`);
+					// Don't append partial error here, we'll show full logs at the end
 				}
 			}
 
@@ -213,11 +215,22 @@ export async function runBunAction(
 		const passed = results.filter((r) => r.success).length;
 		const failed = results.filter((r) => !r.success).length;
 
+		let output = totalSuccess
+			? `${passed} packages passed`
+			: `${logs.join("\n")}\n\nCompleted: ${passed} passed, ${failed} failed`;
+
+		if (!totalSuccess) {
+			const failedResults = results.filter((r) => !r.success);
+			output += "\n\nErrors:";
+			for (const result of failedResults) {
+				output += `\n\n--- ${result.packageName}#${result.script} ---\n`;
+				output += result.output;
+			}
+		}
+
 		return {
 			success: totalSuccess,
-			output: totalSuccess
-				? `${passed} packages passed`
-				: `${logs.join("\n")}\n\nCompleted: ${passed} passed, ${failed} failed`,
+			output,
 		};
 	});
 }
