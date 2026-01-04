@@ -52,12 +52,19 @@ async function runPackageScript(
 
 		const stdout = result.text();
 		const stderr = result.stderr.toString();
-		const output = stdout + (stderr ? (stdout ? "\n" : "") + stderr : "");
+		let output = stdout + (stderr ? (stdout ? "\n" : "") + stderr : "");
 		const success = result.exitCode === 0;
 		const duration = Math.round(performance.now() - start);
 
 		if (verbose && output.trim()) {
 			console.log(`[${node.packageName}] ${output}`);
+		}
+
+		if (!verbose) {
+			output = output
+				.split("\n")
+				.filter((line) => !line.trim().startsWith("(pass)"))
+				.join("\n");
 		}
 
 		return {
