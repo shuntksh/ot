@@ -25,7 +25,9 @@ export async function runCmdAction(
 ): Promise<ActionResult> {
 	return withTiming(async () => {
 		const result = await $`${{ raw: cmd }}`.quiet().nothrow();
-		const output = result.text();
+		const stdout = result.text();
+		const stderr = result.stderr.toString();
+		const output = stdout + (stderr ? (stdout ? "\n" : "") + stderr : "");
 		const success = result.exitCode === 0;
 
 		if (options.verbose && output.trim()) {
