@@ -50,13 +50,38 @@ async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
 	};
 }
 
+export function cleanOutput(output: string): string {
+	let lines = output.split("\n");
+
+	// Filter out known noise: lines starting with (pass) or ✓ (ignoring whitespace)
+	lines = lines.filter((line) => {
+		const trimmed = line.trimStart();
+		return !trimmed.startsWith("(pass)") && !trimmed.startsWith("✓");
+	});
+
+	const MAX_CONTEXT_LINES = 20;
+
+	// Truncate to keep context if too long
+	if (lines.length > MAX_CONTEXT_LINES) {
+		const head = lines.slice(0, 5);
+		const tail = lines.slice(-MAX_CONTEXT_LINES);
+		return [
+			...head,
+			`... (${lines.length - 5 - MAX_CONTEXT_LINES} lines hidden) ...`,
+			...tail,
+		].join("\n");
+	}
+
+	return lines.join("\n");
+}
+
 function printFailureDetails(result: StepResult, c: ColorFn): void {
 	console.log();
 	console.log(c("red", `${"─".repeat(60)}`));
 	console.log(c("red", `  FAILED: ${result.name}`));
 	console.log(c("red", `${"─".repeat(60)}`));
 	console.log();
-	console.log(result.output);
+	console.log(cleanOutput(result.output));
 }
 
 function printSummary(
