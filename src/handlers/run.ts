@@ -51,28 +51,22 @@ async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
 }
 
 export function cleanOutput(output: string): string {
-	let lines = output.split("\n");
+	const lines = output.split("\n");
 
-	// Filter out known noise: lines starting with (pass) or ✓ (ignoring whitespace)
-	lines = lines.filter((line) => {
-		const trimmed = line.trimStart();
-		return !trimmed.startsWith("(pass)") && !trimmed.startsWith("✓");
-	});
+	const MAX_LINES = 300;
 
-	const MAX_CONTEXT_LINES = 20;
-
-	// Truncate to keep context if too long
-	if (lines.length > MAX_CONTEXT_LINES) {
-		const head = lines.slice(0, 5);
-		const tail = lines.slice(-MAX_CONTEXT_LINES);
-		return [
-			...head,
-			`... (${lines.length - 5 - MAX_CONTEXT_LINES} lines hidden) ...`,
-			...tail,
-		].join("\n");
+	// Only truncate if output is significantly large
+	if (lines.length <= MAX_LINES) {
+		return output;
 	}
 
-	return lines.join("\n");
+	const head = lines.slice(0, 50);
+	const tail = lines.slice(-100);
+	return [
+		...head,
+		`\n... (${lines.length - head.length - tail.length} lines hidden) ...\n`,
+		...tail,
+	].join("\n");
 }
 
 function printFailureDetails(result: StepResult, c: ColorFn): void {

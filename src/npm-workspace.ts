@@ -166,52 +166,71 @@ export function resolveTaskDependencies(
 	packages: readonly WorkspacePackage[],
 	dependencyGraph: Map<string, readonly string[]>,
 ): readonly TaskNode[] {
-	const nodes: TaskNode[] = [];
-	const taskDeps = new Map<string, string[]>(); // "pkg#script" -> ["dep#script", ...]
-
-	const packagesWithScript = packages.filter((p) => script in p.scripts);
+	const taskNodes = new Map<string, TaskNode>();
 	const packageMap = new Map(packages.map((p) => [p.name, p]));
 
-	// Parse dependsOn to determine dependency type
-	const hasCaret = dependsOn.some((d) => d.startsWith("^"));
-	const specificDeps = dependsOn.filter((d) => d.includes("#"));
+	function resolve(pkgName: string, taskScript: string): void {
+		const taskId = `${pkgName}#${taskScript}`;
+		if (taskNodes.has(taskId)) return;
 
-	for (const pkg of packagesWithScript) {
-		const taskId = `${pkg.name}#${script}`;
+		const pkg = packageMap.get(pkgName);
+		if (!pkg || !(taskScript in pkg.scripts)) return;
+
 		const deps: string[] = [];
 
-		// Handle ^task: depend on same task in all workspace dependencies
-		if (hasCaret) {
-			const pkgDeps = dependencyGraph.get(pkg.name) ?? [];
-			for (const depName of pkgDeps) {
-				const depPkg = packageMap.get(depName);
-				if (depPkg && script in depPkg.scripts) {
-					deps.push(`${depName}#${script}`);
+		// For the root script, use the provided dependsOn.
+		// For subsequent tasks (like build if we are resolving test -> build),
+		// we might want to look up their own dependsOn from a global config,
+		// but since we don't have that yet, we'll just handle the top-level dependsOn
+		// and the ^task recursive dependencies.
+
+		const currentDependsOn = taskScript === script ? dependsOn : [];
+
+		for (const depSpec of currentDependsOn) {
+			if (depSpec.startsWith("^")) {
+				const depTask = depSpec.slice(1);
+				const workspaceDeps = dependencyGraph.get(pkgName) ?? [];
+				for (const workspaceDep of workspaceDeps) {
+					const depPkg = packageMap.get(workspaceDep);
+					if (depPkg && depTask in depPkg.scripts) {
+						const depId = `${workspaceDep}#${depTask}`;
+						deps.push(depId);
+						resolve(workspaceDep, depTask);
+					}
+				}
+			} else if (depSpec.includes("#")) {
+				const [depPkgName, depTask] = depSpec.split("#");
+				if (depPkgName && depTask) {
+					const targetPkg = packageMap.get(depPkgName);
+					if (targetPkg && depTask in targetPkg.scripts) {
+						deps.push(depSpec);
+						resolve(depPkgName, depTask);
+					}
+				}
+			} else {
+				// Same package dependency
+				const depTask = depSpec;
+				if (depTask in pkg.scripts && depTask !== taskScript) {
+					deps.push(`${pkgName}#${depTask}`);
+					resolve(pkgName, depTask);
 				}
 			}
 		}
 
-		// Handle package#task: explicit dependencies
-		for (const specDep of specificDeps) {
-			const [depPkg, depScript] = specDep.split("#");
-			if (depPkg && depScript) {
-				const targetPkg = packageMap.get(depPkg);
-				if (targetPkg && depScript in targetPkg.scripts) {
-					deps.push(specDep);
-				}
-			}
-		}
-
-		taskDeps.set(taskId, deps);
-		nodes.push({
-			packageName: pkg.name,
+		taskNodes.set(taskId, {
+			packageName: pkgName,
 			packagePath: pkg.path,
-			script,
+			script: taskScript,
 			dependencies: deps,
 		});
 	}
 
-	return nodes;
+	const packagesWithRootScript = packages.filter((p) => script in p.scripts);
+	for (const pkg of packagesWithRootScript) {
+		resolve(pkg.name, script);
+	}
+
+	return Array.from(taskNodes.values());
 }
 
 /**
