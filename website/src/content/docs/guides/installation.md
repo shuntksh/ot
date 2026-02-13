@@ -1,10 +1,10 @@
 ---
 title: Installation
-description: How to install OpenTurbo
+description: How to install Ot
 ---
 
-Currently, you can install OpenTurbo from source using `bun add`:
+Currently, you can install Ot from source using `bun add`:
 
 ```sh
-bun add -D github:shuntksh/openturbo
+bun add -D github:shuntksh/ot
 ```

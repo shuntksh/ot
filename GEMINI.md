@@ -1,8 +1,8 @@
-# OpenTurbo Context
+# Ot Context
 
 ## Project Overview
 
-**OpenTurbo** is a high-performance, TurboRepo-style task runner designed specifically for the Bun runtime. It emphasizes zero-dependency architecture (apart from Bun itself) and first-class support for Git worktrees.
+**Ot** is a high-performance, TurboRepo-style task runner designed specifically for the Bun runtime. It emphasizes zero-dependency architecture (apart from Bun itself) and first-class support for Git worktrees.
 
 **Key Features:**
 *   **Task Running:** Defines workflows with dependent steps (DAG).
@@ -51,12 +51,12 @@ bun run dev  # Starts the dev server at http://localhost:4321
     *   `git/` - Git interaction logic.
 *   `website/` - Astro/Starlight documentation site.
 *   `examples/` - Example projects (e.g., `complex-monorepo`) demonstrating usage.
-*   `workflows.json` - The project's own workflow configuration (dogfooding OpenTurbo).
+*   `workflows.json` - The project's own workflow configuration (dogfooding Ot).
 *   `build.ts` - Custom build script using `Bun.build`.
 
 ## Configuration
 
-OpenTurbo looks for configuration in:
+Ot looks for configuration in:
 1.  `workflows.json` / `workflows.jsonc`
 2.  `package.json` (`workflows` key)
 3.  `.config/workflow.json`

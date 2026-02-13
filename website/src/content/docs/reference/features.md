@@ -1,6 +1,6 @@
 ---
 title: Features
-description: Key features of OpenTurbo
+description: Key features of Ot
 ---
 
 - **Worktree Management**: Full lifecycle management (add, remove, list) with support for post-creation hooks

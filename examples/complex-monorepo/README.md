@@ -52,7 +52,7 @@ Each package has stub scripts that simulate work with random delays (to test par
    ```
 
 4. **Verify graph**:
-   You can use `openturbo` or recursive bun commands to test the dependency graph resolution.
+   You can use `ot` or recursive bun commands to test the dependency graph resolution.
    For example, building `frontend` should ensure `ui-lib`, `utils`, `types`, and `constants` are built (if utilizing a smart runner). Standard `bun run` just runs the script in the target package.
 
 ## Simulation Details

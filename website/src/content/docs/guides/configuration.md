@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Configuring OpenTurbo workflows and worktrees
+description: Configuring Ot workflows and worktrees
 ---
 
 Config is discovered from (in order):

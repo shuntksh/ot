@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">OpenTurbo(WIP)</h1>
+  <h1 align="center">ot(WIP)</h1>
   <p align="center">
     <strong>TurboRepo-style task runner for Bun</strong>
     <br />
@@ -16,10 +16,10 @@
   <a href="#branch-filtering">Branch Filtering</a>
 </p>
 
-`OpenTurbo` is a high-performance task runner designed for Bun. It brings TurboRepo-style parallel execution and dependency graph awareness to any project, with first-class support for Git worktrees and branch-conditional tasks.
+`ot` is a high-performance task runner designed for Bun. It brings TurboRepo-style parallel execution and dependency graph awareness to any project, with first-class support for Git worktrees and branch-conditional tasks.
 
 ---
-![OpenTurbo demo](website/public/demo.gif)
+![ot demo](website/public/demo.gif)
 
 ## Features
 
@@ -31,10 +31,10 @@
 
 ## Installation
 
-Currently, you can install OpenTurbo from source using `bun add`:
+Currently, you can install Ot from source using `bun add`:
 
 ```sh
-bun add -D github:shuntksh/openturbo
+bun add -D github:shuntksh/ot
 ```
 
 ## Usage
@@ -147,7 +147,7 @@ Configure worktree defaults and hooks in the `worktree` section of your config:
 
 ## Worktree Management
 
-OpenTurbo replaces `git worktree` boilerplate with a streamlined CLI that handles directory management and setup hooks.
+Ot replaces `git worktree` boilerplate with a streamlined CLI that handles directory management and setup hooks.
 
 ### Commands
 

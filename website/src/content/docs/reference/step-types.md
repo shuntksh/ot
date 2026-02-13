@@ -1,9 +1,9 @@
 ---
 title: Step Types
-description: Available step types in OpenTurbo workflows
+description: Available step types in Ot workflows
 ---
 
-OpenTurbo supports several types of steps to define your workflow.
+Ot supports several types of steps to define your workflow.
 
 ## `cmd`
 

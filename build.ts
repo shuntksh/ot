@@ -60,7 +60,7 @@ for (const target of supportedTargets) {
 	const os = parts[1];
 	const archName = parts[2];
 
-	const outfile = `dist/openturbo-${os}-${archName}`;
+	const outfile = `dist/ot-${os}-${archName}`;
 
 	console.log(`Building for ${target} -> ${outfile}...`);
 

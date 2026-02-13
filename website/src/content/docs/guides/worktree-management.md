@@ -1,9 +1,9 @@
 ---
 title: Worktree Management
-description: Managing Git worktrees with OpenTurbo
+description: Managing Git worktrees with Ot
 ---
 
-OpenTurbo replaces `git worktree` boilerplate with a streamlined CLI that handles directory management and setup hooks.
+Ot replaces `git worktree` boilerplate with a streamlined CLI that handles directory management and setup hooks.
 
 ## Commands
 

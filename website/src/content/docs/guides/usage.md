@@ -1,6 +1,6 @@
 ---
 title: Usage
-description: Basic usage of OpenTurbo CLI
+description: Basic usage of Ot CLI
 ---
 
 Run a job defined in your workflow configuration:
@@ -35,4 +35,4 @@ ot wt <command> [options]
 | `remove` | Remove a worktree (and optionally delete its branch) |
 | `list` | List managed worktrees |
 
-See the [Worktree Management](/openturbo/guides/worktree-management/) guide for more details.
+See the [Worktree Management](/ot/guides/worktree-management/) guide for more details.

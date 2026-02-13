@@ -1,5 +1,5 @@
 {
-	"name": "openturbo",
+	"name": "ot",
 	"version": "0.0.7",
 	"description": "TurboRepo-style task runner for Bun with Git worktree awareness",
 	"bin": {
@@ -30,7 +30,7 @@
 	},
 	"cspell": {
 		"ignoreWords": [
-			"openturbo"
+			"ot"
 		]
 	},
 	"dependencies": {

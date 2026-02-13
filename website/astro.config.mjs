@@ -5,15 +5,15 @@ import { defineConfig } from "astro/config";
 // https://astro.build/config
 export default defineConfig({
 	site: "https://shuntksh.github.io",
-	base: "/openturbo",
+	base: "/ot",
 	integrations: [
 		starlight({
-			title: "OpenTurbo",
+			title: "Ot",
 			social: [
 				{
 					label: "GitHub",
 					icon: "github",
-					href: "https://github.com/shuntksh/openturbo",
+					href: "https://github.com/shuntksh/ot",
 				},
 			],
 			sidebar: [
