@@ -28,6 +28,7 @@ export const BunActionSchema = z.object({
  */
 export const StepSchema = z.object({
 	name: z.string(),
+	displayName: z.string().optional(),
 	description: z.string().optional(),
 	dependsOn: z.array(z.string()).optional(),
 	branches: z.array(z.string()).optional(),

@@ -18,7 +18,7 @@ Config is discovered from (in order):
   "workflows": {
     "build": {
       "steps": [
-        { "name": "install", "cmd": "bun install --frozen-lockfile" },
+        { "name": "install", "displayName": "Install dependencies", "cmd": "bun install --frozen-lockfile" },
         { "name": "build", "bun": { "script": "build" }, "dependsOn": ["install"] }
       ]
     },

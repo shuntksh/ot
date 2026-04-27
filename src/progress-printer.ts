@@ -22,6 +22,7 @@ export type NestedTask = {
  */
 export type RenderStepState = {
 	name: string;
+	displayName: string;
 	status: StepStatus;
 	duration?: number;
 	nested: NestedTask[];
@@ -40,7 +41,7 @@ export type ProgressPrinterOptions = {
  * Formats a step line for display.
  */
 function formatStepLine(state: RenderStepState, c: ColorFn): string {
-	const name = state.name.padEnd(16);
+	const name = state.displayName.padEnd(16);
 	const duration = state.duration
 		? state.duration >= 1000
 			? `(${(state.duration / 1000).toFixed(2)}s)`
@@ -98,15 +99,25 @@ export class ProgressPrinter {
 	#renderedLines: string[] = [];
 	#isRendered = false;
 
-	constructor(stepNames: readonly string[], options: ProgressPrinterOptions) {
+	constructor(
+		steps: readonly (
+			| string
+			| { readonly name: string; readonly displayName?: string }
+		)[],
+		options: ProgressPrinterOptions,
+	) {
 		this.#steps = new Map();
-		this.#stepOrder = stepNames;
+		const normalizedSteps = steps.map((step) =>
+			typeof step === "string" ? { name: step } : step,
+		);
+		this.#stepOrder = normalizedSteps.map((step) => step.name);
 		this.#isTTY = options.isTTY;
 		this.#c = options.c;
 
-		for (const name of stepNames) {
-			this.#steps.set(name, {
-				name,
+		for (const step of normalizedSteps) {
+			this.#steps.set(step.name, {
+				name: step.name,
+				displayName: step.displayName ?? step.name,
 				status: "pending",
 				nested: [],
 				showNested: false,
@@ -256,8 +267,11 @@ export class ProgressPrinter {
  * Creates a progress printer for the given steps.
  */
 export function createProgressPrinter(
-	stepNames: readonly string[],
+	steps: readonly (
+		| string
+		| { readonly name: string; readonly displayName?: string }
+	)[],
 	options: ProgressPrinterOptions,
 ): ProgressPrinter {
-	return new ProgressPrinter(stepNames, options);
+	return new ProgressPrinter(steps, options);
 }

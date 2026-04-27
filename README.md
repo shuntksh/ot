@@ -85,7 +85,7 @@ Config is discovered from (in order):
   "workflows": {
     "build": {
       "steps": [
-        { "name": "install", "cmd": "bun install --frozen-lockfile" },
+        { "name": "install", "displayName": "Install dependencies", "cmd": "bun install --frozen-lockfile" },
         { "name": "build", "bun": { "script": "build" }, "dependsOn": ["install"] }
       ]
     },
@@ -198,6 +198,12 @@ Run a shell command:
 
 ```json
 { "name": "build", "cmd": "bun run build" }
+```
+
+`name` is the stable step id used by `dependsOn`. Add `displayName` when you want a friendlier label in progress output:
+
+```json
+{ "name": "typecheck", "displayName": "TypeScript", "cmd": "bun run typecheck" }
 ```
 
 ### `worktree:cp`

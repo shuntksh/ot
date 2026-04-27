@@ -75,12 +75,13 @@ describe("stripJsonComments", () => {
 describe("getSteps", () => {
 	test("returns steps from array workflow", () => {
 		const steps: Step[] = [
-			{ name: "step1", cmd: "echo 1" },
+			{ name: "step1", displayName: "Step One", cmd: "echo 1" },
 			{ name: "step2", cmd: "echo 2" },
 		];
 		const workflow: Workflow = steps;
 
 		expect(getSteps(workflow)).toBe(steps);
+		expect(getSteps(workflow)[0]?.displayName).toBe("Step One");
 	});
 
 	test("returns steps from object workflow", () => {

@@ -44,8 +44,9 @@ export function formatStepLine(state: StepState, c: ColorFn): string {
 				: state.status === "skipped"
 					? c("dim", "skipped")
 					: "";
+	const name = state.step.displayName ?? state.step.name;
 
-	return `  ${icon} ${state.step.name.padEnd(16)} ${statusText}${duration}`;
+	return `  ${icon} ${name.padEnd(16)} ${statusText}${duration}`;
 }
 
 /**

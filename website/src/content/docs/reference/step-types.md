@@ -13,6 +13,12 @@ Run a shell command:
 { "name": "build", "cmd": "bun run build" }
 ```
 
+`name` is the stable step id used by `dependsOn`. Add `displayName` when you want a friendlier label in progress output:
+
+```json
+{ "name": "typecheck", "displayName": "TypeScript", "cmd": "bun run typecheck" }
+```
+
 ## `worktree:cp`
 
 Copy files from another worktree:

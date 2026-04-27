@@ -64,7 +64,9 @@ export async function handleGraph(
 	const maxDepth = Math.max(...layers.keys());
 	for (let d = 0; d <= maxDepth; d++) {
 		const layer = layers.get(d) ?? [];
-		const names = layer.map((s) => c("cyan", s.name)).join(c("dim", " | "));
+		const names = layer
+			.map((s) => c("cyan", s.displayName ?? s.name))
+			.join(c("dim", " | "));
 		const parallel = layer.length > 1 ? c("dim", " (parallel)") : "";
 		console.log(`  ${c("dim", `[${d}]`)} ${names}${parallel}`);
 
@@ -88,7 +90,9 @@ export async function handleGraph(
 						);
 						const taskLayers = topologicalSort(nodes);
 
-						console.log(c("dim", `       └─ ${step.name} (bun):`));
+						console.log(
+							c("dim", `       └─ ${step.displayName ?? step.name} (bun):`),
+						);
 						for (let i = 0; i < taskLayers.length; i++) {
 							const taskLayer = taskLayers[i];
 							if (!taskLayer) continue;

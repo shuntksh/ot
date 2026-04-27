@@ -18,9 +18,11 @@ import {
 } from "../mod";
 
 async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
+	const resultName = step.displayName ?? step.name;
+
 	if (step.cmd) {
 		const result = await runCmdAction(step.cmd, { verbose: ctx.verbose });
-		return { ...result, name: step.name };
+		return { ...result, name: resultName };
 	}
 
 	if (step["worktree:cp"]) {
@@ -29,7 +31,7 @@ async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
 			getWorktrees: GitUtil.getWorktrees,
 			verbose: ctx.verbose,
 		});
-		return { ...result, name: step.name };
+		return { ...result, name: resultName };
 	}
 
 	if (step.bun) {
@@ -39,14 +41,14 @@ async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
 			stepName: step.name,
 			printer: ctx.printer,
 		});
-		return { ...result, name: step.name };
+		return { ...result, name: resultName };
 	}
 
 	return {
 		success: false,
-		output: `Step "${step.name}" has no action defined`,
+		output: `Step "${resultName}" has no action defined`,
 		duration: 0,
-		name: step.name,
+		name: resultName,
 	};
 }
 
@@ -265,8 +267,7 @@ export async function handleRun(options: HandleRunOptions): Promise<number> {
 	console.log();
 
 	// Create progress printer for centralized TTY display
-	const stepNames = steps.map((s) => s.name);
-	const printer = createProgressPrinter(stepNames, { isTTY, c });
+	const printer = createProgressPrinter(steps, { isTTY, c });
 
 	const ctx: RunContext = {
 		c,
@@ -279,6 +280,7 @@ export async function handleRun(options: HandleRunOptions): Promise<number> {
 
 	let stepsToRun: Step[];
 	try {
+		const stepNames = steps.map((s) => s.name);
 		stepsToRun = resolveStepsWithDeps(steps, stepNames);
 	} catch (e) {
 		const message = e instanceof Error ? e.message : String(e);

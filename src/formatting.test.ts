@@ -68,4 +68,16 @@ describe("formatStepLine", () => {
 		// "test-step" is 9 chars, should be padded to 16
 		expect(line).toContain("test-step       ");
 	});
+
+	test("uses display name when present", () => {
+		const line = formatStepLine(
+			{
+				...makeState("pending"),
+				step: { name: "test-step", displayName: "Test Step" },
+			},
+			noColor,
+		);
+		expect(line).toContain("Test Step");
+		expect(line).not.toContain("test-step");
+	});
 });
