@@ -1,6 +1,6 @@
 {
 	"name": "ot",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"description": "TurboRepo-style task runner for Bun with Git worktree awareness",
 	"bin": {
 		"ot": "src/cmd.ts"
