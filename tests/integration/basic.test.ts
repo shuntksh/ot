@@ -17,6 +17,16 @@ describe("Integration: Basic Workflows", () => {
 		await project.cleanup();
 	});
 
+	test("should show version", async () => {
+		const project = await createTestProject("basic-version");
+		const result = await project.runCLI(["--version"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.output.trim()).toMatch(/^ot \d+\.\d+\.\d+$/);
+
+		await project.cleanup();
+	});
+
 	test("should run a simple command step", async () => {
 		const project = await createTestProject("basic-cmd");
 
@@ -133,6 +143,50 @@ describe("Integration: Basic Workflows", () => {
 
 		expect(result.exitCode).toBe(0);
 		expect(result.output).toContain("second\nfirst");
+
+		await project.cleanup();
+	});
+
+	test("should allow nested substeps to depend on top-level steps", async () => {
+		const project = await createTestProject("basic-nested-external-deps");
+
+		await project.writeJson("workflows.json", {
+			nested: {
+				steps: [
+					{
+						name: "repo-scripts",
+						steps: [
+							{
+								name: "line-count",
+								cmd: "test -f lint-done.txt && printf 'line-count\\n' >> nested-order.txt",
+								dependsOn: ["lint"],
+							},
+							{
+								name: "boundary",
+								cmd: "test -f lint-done.txt && printf 'boundary\\n' >> nested-order.txt",
+								dependsOn: ["lint"],
+							},
+						],
+					},
+					{
+						name: "lint",
+						cmd: "printf 'lint\\n' > lint-done.txt",
+					},
+					{
+						name: "show",
+						cmd: "cat lint-done.txt nested-order.txt",
+						dependsOn: ["repo-scripts"],
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI(["nested", "-v"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toContain("lint");
+		expect(result.output).toContain("line-count");
+		expect(result.output).toContain("boundary");
 
 		await project.cleanup();
 	});

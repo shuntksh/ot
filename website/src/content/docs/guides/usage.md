@@ -21,6 +21,7 @@ ot <job-name> [options]
 | `--fail-fast` | Stop on first failure (default: true) |
 | `-v, --verbose` | Show command output |
 | `--no-color` | Disable colored output |
+| `--version` | Show version |
 | `-h, --help` | Show help |
 
 ## Worktree Management

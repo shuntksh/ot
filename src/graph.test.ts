@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveStepsWithDeps } from "./graph";
+import { prepareWorkflowSteps, resolveStepsWithDeps } from "./graph";
 import type { Step } from "./types";
 
 describe("resolveStepsWithDeps", () => {
@@ -115,5 +115,89 @@ describe("resolveStepsWithDeps", () => {
 
 		const result = resolveStepsWithDeps(steps, ["a"]);
 		expect(result.map((s) => s.name)).toEqual(["a"]);
+	});
+});
+
+describe("prepareWorkflowSteps", () => {
+	test("allows top-level steps to depend on nested steps by parent.child id", () => {
+		const steps: Step[] = [
+			{
+				name: "group",
+				steps: [
+					{ name: "lint", cmd: "lint" },
+					{ name: "test", cmd: "test", dependsOn: ["lint"] },
+				],
+			},
+			{ name: "after", cmd: "after", dependsOn: ["group.test"] },
+		];
+
+		const result = prepareWorkflowSteps(steps);
+
+		expect(result[1]?.dependsOn).toEqual(["group"]);
+		expect(result[0]?.steps?.[1]?.dependsOn).toEqual(["lint"]);
+	});
+
+	test("promotes nested dependencies on top-level steps to the parent group", () => {
+		const steps: Step[] = [
+			{
+				name: "group",
+				steps: [
+					{ name: "line-count", cmd: "line-count", dependsOn: ["lint"] },
+					{ name: "boundary", cmd: "boundary", dependsOn: ["lint"] },
+				],
+			},
+			{ name: "lint", cmd: "lint" },
+		];
+
+		const result = prepareWorkflowSteps(steps);
+
+		expect(result[0]?.dependsOn).toEqual(["lint"]);
+		expect(result[0]?.steps?.[0]?.dependsOn).toBeUndefined();
+		expect(result[0]?.steps?.[1]?.dependsOn).toBeUndefined();
+	});
+
+	test("prefers sibling nested steps for unqualified child dependencies", () => {
+		const steps: Step[] = [
+			{ name: "lint", cmd: "top-lint" },
+			{
+				name: "group",
+				steps: [
+					{ name: "lint", cmd: "nested-lint" },
+					{ name: "test", cmd: "test", dependsOn: ["lint"] },
+				],
+			},
+		];
+
+		const result = prepareWorkflowSteps(steps);
+
+		expect(result[1]?.dependsOn).toBeUndefined();
+		expect(result[1]?.steps?.[1]?.dependsOn).toEqual(["lint"]);
+	});
+
+	test("detects cycles that cross top-level and nested steps", () => {
+		const steps: Step[] = [
+			{ name: "lint", cmd: "lint", dependsOn: ["group.line-count"] },
+			{
+				name: "group",
+				steps: [{ name: "line-count", cmd: "line-count", dependsOn: ["lint"] }],
+			},
+		];
+
+		expect(() => prepareWorkflowSteps(steps)).toThrow(
+			/Circular dependency detected/,
+		);
+	});
+
+	test("detects self dependencies inside nested groups", () => {
+		const steps: Step[] = [
+			{
+				name: "group",
+				steps: [{ name: "lint", cmd: "lint", dependsOn: ["lint"] }],
+			},
+		];
+
+		expect(() => prepareWorkflowSteps(steps)).toThrow(
+			/Circular dependency detected/,
+		);
 	});
 });

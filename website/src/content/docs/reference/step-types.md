@@ -87,7 +87,7 @@ successful run.
 
 ## Nested `steps`
 
-Group related steps under a parent step:
+Group related substeps under a parent step:
 
 ```json
 {
@@ -102,7 +102,17 @@ Group related steps under a parent step:
 }
 ```
 
-Nested steps are shown under the parent step in progress output. By default,
-ready nested steps run in parallel. Set `parallel: false` to run one ready child
-at a time using the order from `steps`, while still honoring `dependsOn`.
-`pararell` is also accepted as a compatibility alias.
+Nested steps display their progress under the parent step. Ready substeps run in
+parallel by default. Set `parallel: false` to run one ready child at a time in
+the order from `steps`, while still honoring `dependsOn`. `pararell` is also
+accepted as a compatibility alias.
+
+Outside the parent group, address a nested step as `parent.child`:
+
+```json
+{ "name": "package", "cmd": "bun build", "dependsOn": ["quality.test"] }
+```
+
+Inside a nested group, unqualified dependency names first resolve to sibling
+substeps. If a child depends on a top-level step or another group, Ot promotes
+that dependency to the parent group so the full group waits before running.

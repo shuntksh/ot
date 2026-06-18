@@ -18,6 +18,7 @@ import {
 	getSteps,
 	loadConfig,
 	normalizeChangedFiles,
+	prepareWorkflowSteps,
 	resolveStepsWithDeps,
 	runBunAction,
 	runCmdAction,
@@ -427,7 +428,14 @@ export async function handleRun(options: HandleRunOptions): Promise<number> {
 		return 1;
 	}
 
-	const steps = getSteps(workflow);
+	let steps: Step[];
+	try {
+		steps = prepareWorkflowSteps(getSteps(workflow));
+	} catch (e) {
+		const message = e instanceof Error ? e.message : String(e);
+		console.error(c("red", `Error: ${message}`));
+		return 1;
+	}
 	const currentBranch = await GitUtil.getCurrentBranch();
 	const inWorktree = await GitUtil.isInWorktree(gitRoot);
 

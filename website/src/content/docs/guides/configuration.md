@@ -46,10 +46,30 @@ Config is discovered from (in order):
           }
         }
       ]
+    },
+    "quality": {
+      "steps": [
+        {
+          "name": "checks",
+          "description": "Run local checks",
+          "parallel": false,
+          "steps": [
+            { "name": "format", "cmd": "bun run format" },
+            { "name": "lint", "cmd": "bun run lint", "dependsOn": ["format"] },
+            { "name": "test", "cmd": "bun test", "dependsOn": ["lint"] }
+          ]
+        }
+      ]
     }
   }
 }
 ```
+
+Nested `steps` group related substeps under one parent in the progress output.
+Ready substeps run in parallel by default. Set `parallel: false` to run one
+ready child at a time in the order from `steps`, while still honoring
+`dependsOn`. Outside the parent group, address a nested step as `parent.child`.
+`pararell` is also accepted as a compatibility alias.
 
 ## Worktree Configuration
 

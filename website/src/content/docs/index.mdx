@@ -20,7 +20,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 ## Why Ot?
 
-Ot is a high-performance task runner designed for Bun. It brings TurboRepo-style parallel execution and dependency graph awareness to any project, with first-class support for Git worktrees and branch-conditional tasks.
+Ot is a high-performance task runner designed for Bun. It brings TurboRepo-style parallel execution, nested step groups, and dependency graph awareness to any project, with first-class support for Git worktrees and branch-conditional tasks.
 
 <CardGrid stagger>
 	<Card title="Worktree Management" icon="laptop">
@@ -32,7 +32,10 @@ Ot is a high-performance task runner designed for Bun. It brings TurboRepo-style
 	<Card title="Workspace-aware" icon="rocket">
 		Parallel NPM script execution across npm/bun workspaces with dependency ordering.
 	</Card>
+	<Card title="Nested step groups" icon="puzzle">
+		Group related substeps and display nested progress under the parent step.
+	</Card>
 	<Card title="Dependency Graph" icon="puzzle">
-		Define step dependencies for sequential or parallel execution.
+		Define top-level and nested step dependencies for sequential or parallel execution.
 	</Card>
 </CardGrid>

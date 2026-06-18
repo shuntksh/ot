@@ -15,3 +15,4 @@ export * from "./npm-workspace";
 export * from "./progress-printer";
 export * from "./task-cache";
 export * from "./types";
+export * from "./version";

@@ -24,4 +24,13 @@ describe("runCmdAction", () => {
 		expect(result.output).toContain("src/a.ts|src/with space.ts");
 		expect(result.output).toContain('["src/a.ts","src/with space.ts"]');
 	});
+
+	test("drains large stdout and stderr while waiting for exit", async () => {
+		const cmd = `bun -e "for (let i = 0; i < 3000; i++) console.log('out' + i); for (let i = 0; i < 3000; i++) console.error('err' + i)"`;
+		const result = await runCmdAction(cmd, { verbose: false });
+
+		expect(result.success).toBe(true);
+		expect(result.output).toContain("out2999");
+		expect(result.output).toContain("err2999");
+	});
 });

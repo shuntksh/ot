@@ -16,7 +16,7 @@
   <a href="#branch-filtering">Branch Filtering</a>
 </p>
 
-`ot` is a high-performance task runner designed for Bun. It brings TurboRepo-style parallel execution and dependency graph awareness to any project, with first-class support for Git worktrees and branch-conditional tasks.
+`ot` is a high-performance task runner designed for Bun. It brings TurboRepo-style parallel execution, nested step groups, and dependency graph awareness to any project, with first-class support for Git worktrees and branch-conditional tasks.
 
 ---
 ![ot demo](website/public/demo.gif)
@@ -27,7 +27,8 @@
 - **Branch-filtered steps**: Run steps conditionally based on branch patterns with glob and negation support
 - **Git worktree support**: Copy files between worktrees, branch-specific filtering for worktree contexts
 - **Workspace-aware execution**: Parallel NPM script execution across npm/bun workspaces with dependency ordering
-- **Dependency graph**: Define step dependencies with `dependsOn` for sequential or parallel execution
+- **Nested step groups**: Group related substeps and display nested progress under the parent step
+- **Dependency graph**: Define top-level and nested step dependencies with `dependsOn` for sequential or parallel execution
 
 ## Installation
 
@@ -55,6 +56,7 @@ ot <job-name> [options]
 | `--fail-fast` | Stop on first failure (default: true) |
 | `-v, --verbose` | Show command output |
 | `--no-color` | Disable colored output |
+| `--version` | Show version |
 | `-h, --help` | Show help |
 
 ### Worktree Management
@@ -113,6 +115,20 @@ Config is discovered from (in order):
             "dependsOn": ["^build"],
             "hardTimeoutSeconds": 60
           }
+        }
+      ]
+    },
+    "quality": {
+      "steps": [
+        {
+          "name": "checks",
+          "description": "Run local checks",
+          "parallel": false,
+          "steps": [
+            { "name": "format", "cmd": "bun run format" },
+            { "name": "lint", "cmd": "bun run lint", "dependsOn": ["format"] },
+            { "name": "test", "cmd": "bun test", "dependsOn": ["lint"] }
+          ]
         }
       ]
     }
@@ -384,6 +400,38 @@ Cache entries are stored under `.ot/cache` and should not be committed.
 - `^task` — Run task in all dependencies first
 - `task` — Run task in current package first
 - `pkg#task` — Run specific package's task first
+
+### Nested `steps`
+
+Group related substeps under a parent step:
+
+```json
+{
+  "name": "quality",
+  "description": "Run quality checks",
+  "parallel": false,
+  "steps": [
+    { "name": "format", "cmd": "bun run format" },
+    { "name": "lint", "cmd": "bun run lint" },
+    { "name": "test", "cmd": "bun test", "dependsOn": ["lint"] }
+  ]
+}
+```
+
+Nested steps display their progress under the parent step. Ready substeps run in
+parallel by default. Set `parallel: false` to run one ready child at a time in
+the order from `steps`, while still honoring `dependsOn`. `pararell` is also
+accepted as a compatibility alias.
+
+Outside the parent group, address a nested step as `parent.child`:
+
+```json
+{ "name": "package", "cmd": "bun build", "dependsOn": ["quality.test"] }
+```
+
+Inside a nested group, unqualified dependency names first resolve to sibling
+substeps. If a child depends on a top-level step or another group, Ot promotes
+that dependency to the parent group so the full group waits before running.
 
 ## Branch Filtering
 

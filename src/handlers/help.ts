@@ -22,6 +22,7 @@ ${c("dim", "OPTIONS:")}
   ${c("green", "--fail-fast")}        Stop on first failure (default: true)
   ${c("green", "--graph")}            Show dependency graph and exit
   ${c("green", "--no-color")}         Disable colored output
+  ${c("green", "--version")}          Show version and exit
   ${c("green", "-h, --help")}         Show this help message
 
 ${c("dim", "AVAILABLE JOBS:")}
@@ -55,6 +56,15 @@ ${c("dim", "BUN CACHE:")}
 
   Cache keys include package inputs, root/global inputs, the package script
   command, Bun version, action settings, and changed-file argv when appended.
+
+${c("dim", "NESTED STEPS:")}
+  Use steps: [...] on a parent step to group related substeps.
+  Nested output is displayed under the parent step.
+
+  By default, ready substeps run in parallel. Set parallel: false to run one
+  ready substep at a time using the order from steps, while still honoring
+  dependsOn. pararell is accepted as a compatibility alias.
+  Outside the parent, address nested steps as parent.child.
 
 ${c("dim", "BRANCH FILTERING:")}
   branches: ["main"]         Only run on main

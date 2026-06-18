@@ -21,6 +21,7 @@ import {
 	GitUtil,
 	getSteps,
 	loadConfig,
+	VERSION,
 } from "./mod";
 
 async function main(): Promise<void> {
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
 			job: { short: "j", type: "string" },
 			"no-color": { type: "boolean" },
 			verbose: { short: "v", type: "boolean" },
+			version: { type: "boolean" },
 		},
 	});
 
@@ -48,6 +50,11 @@ async function main(): Promise<void> {
 	const isTTY = process.stdout.isTTY ?? false;
 	const noColor = values["no-color"] ?? !isTTY;
 	const c = createColorizer(!noColor);
+
+	if (values.version) {
+		console.log(`ot ${VERSION}`);
+		process.exit(0);
+	}
 
 	// Handle --help
 	if (values.help) {

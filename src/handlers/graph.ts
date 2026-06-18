@@ -4,6 +4,7 @@
 
 import type { ColorFn, Step } from "../mod";
 
+import { prepareWorkflowSteps } from "../graph";
 import {
 	buildDependencyGraph,
 	discoverWorkspaces,
@@ -12,10 +13,12 @@ import {
 } from "../npm-workspace";
 
 export async function handleGraph(
-	steps: readonly Step[],
+	inputSteps: readonly Step[],
 	c: ColorFn,
 	gitRoot: string,
 ): Promise<void> {
+	const steps = prepareWorkflowSteps(inputSteps);
+
 	console.log();
 	console.log(c("bold", "  Dependency Graph"));
 	console.log();
