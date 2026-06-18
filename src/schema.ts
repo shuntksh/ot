@@ -17,7 +17,9 @@ export const WorktreeCpActionSchema = z.object({
 export const BunActionSchema = z.object({
 	/** Script name to run (matches package.json scripts) */
 	script: z.string(),
-	/** Timeout in milliseconds (default: no timeout) */
+	/** Hard timeout in seconds. Timed out scripts are killed (default: no timeout). */
+	hardTimeoutSeconds: z.number().positive().optional(),
+	/** @deprecated Use hardTimeoutSeconds. Timeout in milliseconds. */
 	timeout: z.number().optional(),
 	/** Turborepo-style dependencies: ^task, task, package#task */
 	dependsOn: z.array(z.string()).optional(),

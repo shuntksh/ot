@@ -42,7 +42,7 @@ Config is discovered from (in order):
           "bun": {
             "script": "test",
             "dependsOn": ["^build"],
-            "timeout": 60000
+            "hardTimeoutSeconds": 60
           }
         }
       ]

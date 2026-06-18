@@ -44,10 +44,13 @@ Run scripts across workspace packages with dependency ordering (TurboRepo-style)
   "bun": {
     "script": "test",
     "dependsOn": ["^build"],
-    "timeout": 30000
+    "hardTimeoutSeconds": 30
   }
 }
 ```
+
+`hardTimeoutSeconds` is optional. When set, Ot kills the package script if it
+runs longer than the configured number of seconds.
 
 ### Dependency syntax
 

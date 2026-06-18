@@ -2,7 +2,6 @@
  * Bun workspace action for turborepo-style parallel script execution.
  */
 
-import { $ } from "bun";
 import {
 	buildDependencyGraph,
 	discoverWorkspaces,
@@ -35,58 +34,105 @@ export type TaskResult = ActionResult & {
 };
 
 /**
- * Runs a single script in a package with optional timeout.
+ * Returns the hard timeout in milliseconds for a Bun action.
+ */
+function getHardTimeoutMs(action: BunAction): number | undefined {
+	if (action.hardTimeoutSeconds !== undefined) {
+		return Math.round(action.hardTimeoutSeconds * 1000);
+	}
+	return action.timeout;
+}
+
+function killProcessTree(proc: Bun.Subprocess<"ignore", "pipe", "pipe">): void {
+	if (process.platform !== "win32") {
+		try {
+			process.kill(-proc.pid, "SIGKILL");
+			return;
+		} catch {
+			// Fall back to killing the direct child if process-group kill is unavailable.
+		}
+	}
+
+	try {
+		proc.kill("SIGKILL");
+	} catch {
+		// The process may already have exited between timeout and kill.
+	}
+}
+
+function normalizeOutput(
+	stdout: string,
+	stderr: string,
+	verbose: boolean,
+): string {
+	let output = stdout + (stderr ? (stdout ? "\n" : "") + stderr : "");
+
+	if (!verbose) {
+		output = output
+			.split("\n")
+			.filter((line) => !line.trim().startsWith("(pass)"))
+			.join("\n");
+	}
+
+	return output;
+}
+
+/**
+ * Runs a single script in a package with an optional hard timeout.
  */
 async function runPackageScript(
 	node: TaskNode,
-	timeout: number | undefined,
+	hardTimeoutMs: number | undefined,
 	verbose: boolean,
 ): Promise<TaskResult> {
 	const start = performance.now();
+	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	let timedOut = false;
 
-	const runScript = async (): Promise<TaskResult> => {
-		const result = await $`bun run ${node.script}`
-			.cwd(node.packagePath)
-			.quiet()
-			.nothrow();
+	try {
+		const proc = Bun.spawn(["bun", "run", node.script], {
+			cwd: node.packagePath,
+			detached: process.platform !== "win32",
+			stderr: "pipe",
+			stdin: "ignore",
+			stdout: "pipe",
+		});
+		const stdoutPromise = new Response(proc.stdout).text();
+		const stderrPromise = new Response(proc.stderr).text();
 
-		const stdout = result.text();
-		const stderr = result.stderr.toString();
-		let output = stdout + (stderr ? (stdout ? "\n" : "") + stderr : "");
-		const success = result.exitCode === 0;
+		if (hardTimeoutMs !== undefined && hardTimeoutMs > 0) {
+			timeoutId = setTimeout(() => {
+				timedOut = true;
+				killProcessTree(proc);
+			}, hardTimeoutMs);
+			timeoutId.unref?.();
+		}
+
+		const [exitCode, stdout, stderr] = await Promise.all([
+			proc.exited,
+			stdoutPromise,
+			stderrPromise,
+		]);
 		const duration = Math.round(performance.now() - start);
+		let output = normalizeOutput(stdout, stderr, verbose);
 
 		if (verbose && output.trim()) {
 			console.log(`[${node.packageName}] ${output}`);
 		}
 
-		if (!verbose) {
-			output = output
-				.split("\n")
-				.filter((line) => !line.trim().startsWith("(pass)"))
-				.join("\n");
+		if (timedOut) {
+			const seconds = ((hardTimeoutMs ?? 0) / 1000).toFixed(2);
+			const timeoutMessage = `Hard timeout after ${seconds}s; killed ${node.packageName}#${node.script}`;
+			output = output ? `${output}\n${timeoutMessage}` : timeoutMessage;
 		}
 
 		return {
-			success,
+			success: !timedOut && exitCode === 0,
 			output,
 			duration,
 			packageName: node.packageName,
 			script: node.script,
 		};
-	};
-
-	try {
-		if (timeout !== undefined && timeout > 0) {
-			const timeoutPromise = new Promise<TaskResult>((_, reject) => {
-				setTimeout(
-					() => reject(new Error(`Timeout after ${timeout}ms`)),
-					timeout,
-				);
-			});
-			return await Promise.race([runScript(), timeoutPromise]);
-		}
-		return await runScript();
 	} catch (e) {
 		const duration = Math.round(performance.now() - start);
 		const message = e instanceof Error ? e.message : String(e);
@@ -98,6 +144,10 @@ async function runPackageScript(
 			packageName: node.packageName,
 			script: node.script,
 		};
+	} finally {
+		if (timeoutId !== undefined) {
+			clearTimeout(timeoutId);
+		}
 	}
 }
 
@@ -181,7 +231,7 @@ export async function runBunAction(
 			const layerPromises = layer.map(async (node) => {
 				const result = await runPackageScript(
 					node,
-					action.timeout,
+					getHardTimeoutMs(action),
 					options.verbose,
 				);
 
