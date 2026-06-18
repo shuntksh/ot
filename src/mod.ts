@@ -4,6 +4,7 @@
 
 export * from "./actions/mod";
 export * from "./branch";
+export * from "./changed-files";
 export * from "./colors";
 export * from "./config";
 export * from "./formatting";
@@ -12,4 +13,5 @@ export * from "./graph";
 export * from "./handlers/mod";
 export * from "./npm-workspace";
 export * from "./progress-printer";
+export * from "./task-cache";
 export * from "./types";

@@ -17,6 +17,8 @@ ${c("dim", "OPTIONS:")}
   ${c("green", "-j, --job <name>")}   Job/workflow to run (optional if positional)
   ${c("green", "-c, --config <path>")} Path to config file
   ${c("green", "-v, --verbose")}      Show output for all steps
+  ${c("green", "--changed-files")}    Consume remaining args as changed files
+  ${c("green", "--changed-file <path>")} Add one changed file (repeatable)
   ${c("green", "--fail-fast")}        Stop on first failure (default: true)
   ${c("green", "--graph")}            Show dependency graph and exit
   ${c("green", "--no-color")}         Disable colored output
@@ -34,6 +36,25 @@ ${c("dim", "CONFIG DISCOVERY:")}
   3. At git root:
      a. .config/workflow.json or .jsonc
      b. .config/workflows.json or .jsonc
+
+${c("dim", "LEFTHOOK / CHANGED FILES:")}
+  ot pre-commit --changed-files {staged_files}
+  ot pre-push --changed-files {push_files}
+
+  --changed-files consumes all remaining args. Use changedFiles: "append"
+  to pass them as argv, or read OT_CHANGED_FILES, OT_CHANGED_FILES_JSON,
+  and OT_CHANGED_FILES_COUNT from child commands.
+
+  Workspace bun steps scope changed files per package and pass package-relative
+  paths to each script.
+
+${c("dim", "BUN CACHE:")}
+  Enable with bun.cache: true or bun.cache: { inputs, globalInputs }.
+  Cache entries are local, per package task, and success-only. Failed,
+  timed-out, or killed scripts are never cached.
+
+  Cache keys include package inputs, root/global inputs, the package script
+  command, Bun version, action settings, and changed-file argv when appended.
 
 ${c("dim", "BRANCH FILTERING:")}
   branches: ["main"]         Only run on main

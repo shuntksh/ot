@@ -10,4 +10,18 @@ describe("runCmdAction", () => {
 		expect(result.success).toBe(false);
 		expect(result.output).toContain("error message");
 	});
+
+	test("passes changed files as argv and env", async () => {
+		const cmd = `bun -e "console.log(process.argv.slice(1).join('|')); console.log(process.env.OT_CHANGED_FILES_JSON)"`;
+		const result = await runCmdAction(cmd, {
+			appendChangedFiles: true,
+			changedFiles: ["src/a.ts", "src/with space.ts"],
+			changedFilesSpecified: true,
+			verbose: false,
+		});
+
+		expect(result.success).toBe(true);
+		expect(result.output).toContain("src/a.ts|src/with space.ts");
+		expect(result.output).toContain('["src/a.ts","src/with space.ts"]');
+	});
 });

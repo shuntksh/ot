@@ -94,9 +94,16 @@ describe("resolveTaskDependencies", () => {
 			graph,
 		);
 
-		for (const node of nodes) {
+		const testNodes = nodes.filter((node) => node.script === "test");
+		for (const node of testNodes) {
 			expect(node.dependencies).toContain("@org/internals#build");
 		}
+
+		const buildNode = nodes.find(
+			(node) =>
+				node.packageName === "@org/internals" && node.script === "build",
+		);
+		expect(buildNode?.dependencies).toEqual([]);
 	});
 
 	test("handles packages without the script", () => {

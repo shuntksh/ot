@@ -17,16 +17,18 @@ import { handleGraph, handleHelp, handleRun, handleWt } from "./handlers/mod";
 import {
 	ConfigSchema,
 	createColorizer,
+	extractChangedFilesArgv,
 	GitUtil,
 	getSteps,
 	loadConfig,
 } from "./mod";
 
 async function main(): Promise<void> {
+	const extractedArgs = extractChangedFilesArgv(Bun.argv.slice(2));
 	const { positionals, values } = parseArgs({
 		allowPositionals: true,
 		strict: false,
-		args: Bun.argv.slice(2),
+		args: [...extractedArgs.args],
 		options: {
 			config: { short: "c", type: "string" },
 			"fail-fast": { default: true, type: "boolean" },
@@ -123,6 +125,8 @@ async function main(): Promise<void> {
 	const exitCode = await handleRun({
 		jobName,
 		configPath: configArg,
+		changedFiles: extractedArgs.changedFiles,
+		changedFilesSpecified: extractedArgs.specified,
 		verbose: verboseArg ?? false,
 		failFast: failFastArg ?? true,
 		isTTY,

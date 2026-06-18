@@ -9,6 +9,10 @@ describe("Integration: Basic Workflows", () => {
 		expect(result.exitCode).toBe(0);
 		expect(result.output).toContain("USAGE:");
 		expect(result.output).toContain("Job Runner");
+		expect(result.output).toContain("LEFTHOOK / CHANGED FILES:");
+		expect(result.output).toContain("ot pre-commit --changed-files");
+		expect(result.output).toContain("BUN CACHE:");
+		expect(result.output).toContain("success-only");
 
 		await project.cleanup();
 	});
@@ -52,6 +56,37 @@ describe("Integration: Basic Workflows", () => {
 		expect(result.output).toContain("First");
 		expect(result.output).toContain("Second");
 		expect(result.output).toContain("All 2 steps passed");
+
+		await project.cleanup();
+	});
+
+	test("should pass changed files to command steps", async () => {
+		const project = await createTestProject("basic-changed-files");
+
+		await project.writeJson("workflows.json", {
+			"pre-commit": {
+				steps: [
+					{
+						name: "lint",
+						changedFiles: "append",
+						cmd: `bun -e "console.log(process.argv.slice(1).join('|')); console.log(process.env.OT_CHANGED_FILES_COUNT)"`,
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI([
+			"pre-commit",
+			"-v",
+			"--changed-files",
+			"src/a.ts",
+			"src/with space.ts",
+		]);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toContain("Changed files: 2");
+		expect(result.output).toContain("src/a.ts|src/with space.ts");
+		expect(result.output).toContain("2");
 
 		await project.cleanup();
 	});

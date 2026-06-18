@@ -3,6 +3,8 @@ import {
 	ConfigSchema,
 	WorkflowSchema,
 	StepSchema,
+	ChangedFilesModeSchema,
+	BunCacheSchema,
 	BunActionSchema,
 	WorktreeCpActionSchema,
 	WorktreeHookSchema,
@@ -13,6 +15,8 @@ import type {
 	Config,
 	Workflow,
 	Step,
+	ChangedFilesMode,
+	BunCache,
 	BunAction,
 	WorktreeCpAction,
 	WorktreeHook,
@@ -23,6 +27,8 @@ export {
 	ConfigSchema,
 	WorkflowSchema,
 	StepSchema,
+	ChangedFilesModeSchema,
+	BunCacheSchema,
 	BunActionSchema,
 	WorktreeCpActionSchema,
 	WorktreeHookSchema,
@@ -33,6 +39,8 @@ export type {
 	Config,
 	Workflow,
 	Step,
+	ChangedFilesMode,
+	BunCache,
 	BunAction,
 	WorktreeCpAction,
 	WorktreeHook,
@@ -96,6 +104,8 @@ export type ColorKey =
  */
 export type RunContext = {
 	readonly c: ColorFn;
+	readonly changedFiles: readonly string[];
+	readonly changedFilesSpecified: boolean;
 	readonly failFast: boolean;
 	readonly gitRoot: string;
 	readonly isTTY: boolean;

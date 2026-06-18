@@ -50,6 +50,8 @@ ot <job-name> [options]
 | `-j, --job <name>` | Job name to run (can also be positional) |
 | `-c, --config <path>` | Custom config file path |
 | `--graph` | Print execution graph without running |
+| `--changed-files [files...]` | Consume remaining args as changed files for hook integrations |
+| `--changed-file <path>` | Add one changed file (repeatable) |
 | `--fail-fast` | Stop on first failure (default: true) |
 | `-v, --verbose` | Show command output |
 | `--no-color` | Disable colored output |
@@ -117,6 +119,79 @@ Config is discovered from (in order):
   }
 }
 ```
+
+### Lefthook Integration
+
+Ot is designed to work with Lefthook's file templates. Put the Ot command in
+`lefthook.yml` and pass Lefthook's expanded file list after `--changed-files`:
+
+```yaml
+# lefthook.yml
+pre-commit:
+  commands:
+    lint:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,md,css}"
+      run: ot pre-commit --changed-files {staged_files}
+
+pre-push:
+  commands:
+    test:
+      run: ot pre-push --changed-files {push_files}
+```
+
+`--changed-files` consumes the remaining command-line arguments, which is
+friendly to Lefthook templates such as `{staged_files}`, `{push_files}`, and
+`{files}`. If a caller cannot append a list, it can pass repeatable
+`--changed-file <path>` flags instead.
+
+Then define matching Ot jobs:
+
+```jsonc
+{
+  "workflows": {
+    "pre-commit": {
+      "steps": [
+        {
+          "name": "lint",
+          "cmd": "biome check --write",
+          "changedFiles": "append"
+        }
+      ]
+    },
+    "pre-push": {
+      "steps": [
+        {
+          "name": "test",
+          "bun": {
+            "script": "test",
+            "changedFiles": "append",
+            "cache": true
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+Changed files are always available to child commands through environment
+variables:
+
+- `OT_CHANGED_FILES` newline-delimited paths
+- `OT_CHANGED_FILES_JSON` JSON array
+- `OT_CHANGED_FILES_COUNT` count
+
+Set `changedFiles: "append"` when the underlying tool expects file paths as
+argv. For `cmd` steps, Ot appends the root-relative changed files to the shell
+command. For workspace `bun` steps, Ot scopes the list per package and rewrites
+paths relative to each package cwd, so `packages/app/src/a.ts` becomes
+`src/a.ts` when running inside `packages/app`.
+
+When `bun.cache` is enabled, repeated hook runs skip package scripts that have
+already succeeded with the same content hash. The cache key includes package
+inputs, relevant root config and lock files, the package script command, Bun
+version, action settings, and the changed-file argv. Cache files are written to
+`.ot/cache` and ignored by git.
 
 ### Worktree Configuration
 
@@ -200,6 +275,12 @@ Run a shell command:
 { "name": "build", "cmd": "bun run build" }
 ```
 
+Append CLI-provided changed files to a command:
+
+```json
+{ "name": "lint", "cmd": "biome check", "changedFiles": "append" }
+```
+
 `name` is the stable step id used by `dependsOn`. Add `displayName` when you want a friendlier label in progress output:
 
 ```json
@@ -231,13 +312,73 @@ Run scripts across workspace packages with dependency ordering (TurboRepo-style)
   "bun": {
     "script": "test",
     "dependsOn": ["^build"],
-    "hardTimeoutSeconds": 30
+    "hardTimeoutSeconds": 30,
+    "cache": true
   }
 }
 ```
 
 `hardTimeoutSeconds` is optional. When set, Ot kills the package script if it
 runs longer than the configured number of seconds.
+
+`cache` is optional and disabled by default. Use `cache: true` or an object with
+`inputs` and `globalInputs` globs to enable local content-hash success caching
+for package script invocations.
+
+```json
+{
+  "name": "lint",
+  "bun": {
+    "script": "lint",
+    "changedFiles": "append",
+    "cache": {
+      "inputs": ["src/**/*", "package.json"],
+      "globalInputs": ["biome.jsonc"]
+    }
+  }
+}
+```
+
+#### Cache semantics
+
+The Bun cache is local and success-only. Ot writes a cache entry only after a
+package script exits successfully. Failed scripts, timed-out scripts, and killed
+scripts are never cached.
+
+Each package task gets its own cache key. A cache hit skips only that package
+task; other packages in the same workflow can still run if their keys changed.
+The key includes:
+
+- the package name and package path
+- the script name and package.json script command
+- the Bun version
+- cache-relevant action settings, including `dependsOn`, timeout settings, and
+  whether changed files are appended
+- package input file contents
+- root/global input file contents
+- changed-file argv for that package when `changedFiles: "append"` is used
+
+With `cache: true`, package inputs default to all git-tracked, modified, and
+untracked non-ignored files inside the package. Root/global inputs include common
+lock files and config files such as `package.json`, `bun.lock`, `workflows.json`,
+`biome.jsonc`, `tsconfig.json`, and common test/lint config names.
+
+Use object form to narrow package inputs or add project-specific global inputs:
+
+```json
+{
+  "name": "lint",
+  "bun": {
+    "script": "lint",
+    "cache": {
+      "inputs": ["src/**/*", "package.json"],
+      "globalInputs": ["eslint.config.js", "tool.config"]
+    }
+  }
+}
+```
+
+Cache entries are stored under `.ot/cache` and should not be committed.
 
 **Dependency syntax:**
 - `^task` — Run task in all dependencies first

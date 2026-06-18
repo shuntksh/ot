@@ -3,6 +3,7 @@
  */
 
 import { $ } from "bun";
+import { appendShellArgs, createChangedFilesEnv } from "../changed-files";
 import { type ActionResult, withTiming } from "./types";
 
 /**
@@ -10,6 +11,9 @@ import { type ActionResult, withTiming } from "./types";
  */
 export type CmdActionOptions = {
 	readonly verbose: boolean;
+	readonly appendChangedFiles?: boolean;
+	readonly changedFiles?: readonly string[];
+	readonly changedFilesSpecified?: boolean;
 };
 
 /**
@@ -24,7 +28,27 @@ export async function runCmdAction(
 	options: CmdActionOptions,
 ): Promise<ActionResult> {
 	return withTiming(async () => {
-		const result = await $`${{ raw: cmd }}`.quiet().nothrow();
+		const changedFiles = options.changedFiles ?? [];
+		if (options.appendChangedFiles && options.changedFilesSpecified) {
+			if (changedFiles.length === 0) {
+				return {
+					success: true,
+					output: "No changed files",
+				};
+			}
+		}
+
+		const command =
+			options.appendChangedFiles && changedFiles.length > 0
+				? appendShellArgs(cmd, changedFiles)
+				: cmd;
+		const result = await $`${{ raw: command }}`
+			.env({
+				...process.env,
+				...createChangedFilesEnv(changedFiles),
+			})
+			.quiet()
+			.nothrow();
 		const stdout = result.text();
 		const stderr = result.stderr.toString();
 		const output = stdout + (stderr ? (stdout ? "\n" : "") + stderr : "");

@@ -19,6 +19,12 @@ Run a shell command:
 { "name": "typecheck", "displayName": "TypeScript", "cmd": "bun run typecheck" }
 ```
 
+Append CLI-provided changed files to a command:
+
+```json
+{ "name": "lint", "cmd": "biome check", "changedFiles": "append" }
+```
+
 ## `worktree:cp`
 
 Copy files from another worktree:
@@ -44,13 +50,34 @@ Run scripts across workspace packages with dependency ordering (TurboRepo-style)
   "bun": {
     "script": "test",
     "dependsOn": ["^build"],
-    "hardTimeoutSeconds": 30
+    "hardTimeoutSeconds": 30,
+    "cache": true
   }
 }
 ```
 
 `hardTimeoutSeconds` is optional. When set, Ot kills the package script if it
 runs longer than the configured number of seconds.
+
+`changedFiles: "append"` appends package-scoped changed files to each package
+script. `cache: true` enables local content-hash success caching for package
+script invocations. Cache hits skip only when the script command, Bun version,
+package inputs, relevant root inputs, and changed-file argv match a previous
+successful run.
+
+```json
+{
+  "name": "lint",
+  "bun": {
+    "script": "lint",
+    "changedFiles": "append",
+    "cache": {
+      "inputs": ["src/**/*", "package.json"],
+      "globalInputs": ["biome.jsonc"]
+    }
+  }
+}
+```
 
 ### Dependency syntax
 

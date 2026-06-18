@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 export type TestProject = {
 	dir: string;
 	cleanup: () => Promise<void>;
-	writeJson: (path: string, content: any) => Promise<void>;
+	writeJson: (path: string, content: unknown) => Promise<void>;
 	writeFile: (path: string, content: string) => Promise<void>;
 	runCLI: (args: string[]) => Promise<{
 		exitCode: number;
@@ -20,7 +20,7 @@ export type TestProject = {
 export async function createTestProject(name: string): Promise<TestProject> {
 	const dir = join(
 		tmpdir(),
-		"ot-test-" + name + "-" + Math.random().toString(36).slice(2),
+		`ot-test-${name}-${Math.random().toString(36).slice(2)}`,
 	);
 	await mkdir(dir, { recursive: true });
 
@@ -36,7 +36,7 @@ export async function createTestProject(name: string): Promise<TestProject> {
 		cleanup: async () => {
 			await rm(dir, { recursive: true, force: true });
 		},
-		writeJson: async (path: string, content: any) => {
+		writeJson: async (path: string, content: unknown) => {
 			const fullPath = join(dir, path);
 			await mkdir(dirname(fullPath), { recursive: true });
 			await writeFile(fullPath, JSON.stringify(content, null, 2));

@@ -3,6 +3,10 @@
  */
 
 import {
+	createChangedFilesEnv,
+	scopeChangedFilesToDirectory,
+} from "../changed-files";
+import {
 	buildDependencyGraph,
 	discoverWorkspaces,
 	resolveTaskDependencies,
@@ -10,6 +14,11 @@ import {
 	topologicalSort,
 } from "../npm-workspace";
 import type { NestedTask, ProgressPrinter } from "../progress-printer";
+import {
+	checkTaskCache,
+	normalizeBunCache,
+	writeTaskCacheSuccess,
+} from "../task-cache";
 import type { BunAction } from "../types";
 import { type ActionResult, withTiming } from "./types";
 
@@ -19,6 +28,9 @@ import { type ActionResult, withTiming } from "./types";
 export type BunActionOptions = {
 	readonly verbose: boolean;
 	readonly gitRoot: string;
+	readonly appendChangedFiles?: boolean;
+	readonly changedFiles?: readonly string[];
+	readonly changedFilesSpecified?: boolean;
 	/** Step name (for printer updates) */
 	readonly stepName?: string;
 	/** Optional progress printer for nested task display */
@@ -31,6 +43,8 @@ export type BunActionOptions = {
 export type TaskResult = ActionResult & {
 	readonly packageName: string;
 	readonly script: string;
+	readonly cached?: boolean;
+	readonly skipped?: boolean;
 };
 
 /**
@@ -81,18 +95,74 @@ function normalizeOutput(
  * Runs a single script in a package with an optional hard timeout.
  */
 async function runPackageScript(
+	action: BunAction,
 	node: TaskNode,
+	scriptCommand: string,
+	changedFiles: readonly string[],
+	gitRoot: string,
 	hardTimeoutMs: number | undefined,
 	verbose: boolean,
+	options: Pick<
+		BunActionOptions,
+		"appendChangedFiles" | "changedFilesSpecified"
+	>,
 ): Promise<TaskResult> {
 	const start = performance.now();
 	let timeoutId: ReturnType<typeof setTimeout> | undefined;
 	let timedOut = false;
 
 	try {
-		const proc = Bun.spawn(["bun", "run", node.script], {
+		if (options.appendChangedFiles && options.changedFilesSpecified) {
+			if (changedFiles.length === 0) {
+				return {
+					success: true,
+					output: "No changed files for package",
+					duration: Math.round(performance.now() - start),
+					packageName: node.packageName,
+					script: node.script,
+					skipped: true,
+				};
+			}
+		}
+
+		const cache = normalizeBunCache(action.cache);
+		const cacheLookup = cache.enabled
+			? await checkTaskCache({
+					action,
+					appendChangedFiles: options.appendChangedFiles ?? false,
+					changedFiles,
+					gitRoot,
+					node,
+					scriptCommand,
+				})
+			: undefined;
+
+		if (cacheLookup?.hit) {
+			if (verbose) {
+				console.log(`[${node.packageName}] cache hit`);
+			}
+			return {
+				success: true,
+				output: "Cache hit",
+				duration: Math.round(performance.now() - start),
+				packageName: node.packageName,
+				script: node.script,
+				cached: true,
+			};
+		}
+
+		const args = ["bun", "run", node.script];
+		if (options.appendChangedFiles && changedFiles.length > 0) {
+			args.push("--", ...changedFiles);
+		}
+
+		const proc = Bun.spawn(args, {
 			cwd: node.packagePath,
 			detached: process.platform !== "win32",
+			env: {
+				...process.env,
+				...createChangedFilesEnv(changedFiles),
+			},
 			stderr: "pipe",
 			stdin: "ignore",
 			stdout: "pipe",
@@ -126,8 +196,22 @@ async function runPackageScript(
 			output = output ? `${output}\n${timeoutMessage}` : timeoutMessage;
 		}
 
+		const success = !timedOut && exitCode === 0;
+		if (success && cacheLookup) {
+			try {
+				await writeTaskCacheSuccess(cacheLookup, node);
+			} catch (e) {
+				if (verbose) {
+					const message = e instanceof Error ? e.message : String(e);
+					console.warn(
+						`Cache write failed for ${node.packageName}: ${message}`,
+					);
+				}
+			}
+		}
+
 		return {
-			success: !timedOut && exitCode === 0,
+			success,
 			output,
 			duration,
 			packageName: node.packageName,
@@ -168,6 +252,7 @@ export async function runBunAction(
 
 		// Discover workspace packages
 		const packages = await discoverWorkspaces(options.gitRoot);
+		const packageMap = new Map(packages.map((pkg) => [pkg.name, pkg]));
 
 		if (packages.length === 0) {
 			return {
@@ -229,10 +314,25 @@ export async function runBunAction(
 
 			// Run all tasks in this layer in parallel
 			const layerPromises = layer.map(async (node) => {
+				const packageChangedFiles = scopeChangedFilesToDirectory(
+					options.changedFiles ?? [],
+					options.gitRoot,
+					node.packagePath,
+				);
+				const scriptCommand =
+					packageMap.get(node.packageName)?.scripts[node.script] ?? "";
 				const result = await runPackageScript(
+					action,
 					node,
+					scriptCommand,
+					packageChangedFiles,
+					options.gitRoot,
 					getHardTimeoutMs(action),
 					options.verbose,
+					{
+						appendChangedFiles: options.appendChangedFiles,
+						changedFilesSpecified: options.changedFilesSpecified,
+					},
 				);
 
 				// Update printer with result
@@ -252,7 +352,11 @@ export async function runBunAction(
 				results.push(result);
 
 				const status = result.success ? "✓" : "✗";
-				const duration = `${result.duration}ms`;
+				const duration = result.cached
+					? "cached"
+					: result.skipped
+						? "no changed files"
+						: `${result.duration}ms`;
 				logs.push(
 					`  ${status} ${result.packageName}#${result.script} (${duration})`,
 				);
@@ -269,12 +373,23 @@ export async function runBunAction(
 			}
 		}
 
-		const passed = results.filter((r) => r.success).length;
+		const passed = results.filter(
+			(r) => r.success && !r.cached && !r.skipped,
+		).length;
+		const cached = results.filter((r) => r.cached).length;
+		const skipped = results.filter((r) => r.skipped).length;
 		const failed = results.filter((r) => !r.success).length;
 
+		const successParts: string[] = [];
+		if (passed > 0 || (cached === 0 && skipped === 0)) {
+			successParts.push(`${passed} packages passed`);
+		}
+		if (cached > 0) successParts.push(`${cached} cached`);
+		if (skipped > 0) successParts.push(`${skipped} skipped`);
+
 		let output = totalSuccess
-			? `${passed} packages passed`
-			: `${logs.join("\n")}\n\nCompleted: ${passed} passed, ${failed} failed`;
+			? successParts.join(", ")
+			: `${logs.join("\n")}\n\nCompleted: ${passed} passed, ${cached} cached, ${skipped} skipped, ${failed} failed`;
 
 		if (!totalSuccess) {
 			const failedResults = results.filter((r) => !r.success);

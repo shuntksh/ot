@@ -10,6 +10,7 @@ import {
 	GitUtil,
 	getSteps,
 	loadConfig,
+	normalizeChangedFiles,
 	resolveStepsWithDeps,
 	runBunAction,
 	runCmdAction,
@@ -19,9 +20,15 @@ import {
 
 async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
 	const resultName = step.displayName ?? step.name;
+	const stepChangedFilesMode = step.changedFiles ?? "ignore";
 
 	if (step.cmd) {
-		const result = await runCmdAction(step.cmd, { verbose: ctx.verbose });
+		const result = await runCmdAction(step.cmd, {
+			appendChangedFiles: stepChangedFilesMode === "append",
+			changedFiles: ctx.changedFiles,
+			changedFilesSpecified: ctx.changedFilesSpecified,
+			verbose: ctx.verbose,
+		});
 		return { ...result, name: resultName };
 	}
 
@@ -35,7 +42,11 @@ async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
 	}
 
 	if (step.bun) {
+		const bunChangedFilesMode = step.bun.changedFiles ?? stepChangedFilesMode;
 		const result = await runBunAction(step.bun, {
+			appendChangedFiles: bunChangedFilesMode === "append",
+			changedFiles: ctx.changedFiles,
+			changedFilesSpecified: ctx.changedFilesSpecified,
 			gitRoot: ctx.gitRoot,
 			verbose: ctx.verbose,
 			stepName: step.name,
@@ -53,20 +64,24 @@ async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
 }
 
 export function cleanOutput(output: string): string {
-	const lines = output.split("\n");
+	const lines = output.split("\n").filter((line) => {
+		const trimmed = line.trim();
+		return !trimmed.startsWith("(pass)") && !trimmed.startsWith("✓");
+	});
 
-	const MAX_LINES = 300;
+	const HEAD_LINES = 5;
+	const TAIL_LINES = 20;
+	const MAX_LINES = HEAD_LINES + TAIL_LINES;
 
-	// Only truncate if output is significantly large
 	if (lines.length <= MAX_LINES) {
-		return output;
+		return lines.join("\n");
 	}
 
-	const head = lines.slice(0, 50);
-	const tail = lines.slice(-100);
+	const head = lines.slice(0, HEAD_LINES);
+	const tail = lines.slice(-TAIL_LINES);
 	return [
 		...head,
-		`\n... (${lines.length - head.length - tail.length} lines hidden) ...\n`,
+		`... (${lines.length - head.length - tail.length} lines hidden) ...`,
 		...tail,
 	].join("\n");
 }
@@ -148,7 +163,7 @@ async function runStepsWithDeps(
 		for (const dep of step.dependsOn ?? []) {
 			if (!stepNames.has(dep)) continue;
 			const depState = states.get(dep);
-			if (!depState || depState.status !== "done") {
+			if (depState?.status !== "done") {
 				return false;
 			}
 		}
@@ -160,7 +175,7 @@ async function runStepsWithDeps(
 	while (completed.size < steps.length) {
 		for (const step of steps) {
 			const state = states.get(step.name);
-			if (!state || state.status !== "pending") continue;
+			if (state?.status !== "pending") continue;
 			if (hasFailed && ctx.failFast) {
 				state.status = "skipped";
 				printer?.updateStep(step.name, { status: "skipped" });
@@ -234,6 +249,8 @@ async function runStepsWithDeps(
 export type HandleRunOptions = {
 	readonly jobName: string;
 	readonly configPath: string | undefined;
+	readonly changedFiles: readonly string[];
+	readonly changedFilesSpecified: boolean;
 	readonly verbose: boolean;
 	readonly failFast: boolean;
 	readonly isTTY: boolean;
@@ -241,9 +258,23 @@ export type HandleRunOptions = {
 };
 
 export async function handleRun(options: HandleRunOptions): Promise<number> {
-	const { jobName, configPath, verbose, failFast, isTTY, c } = options;
+	const {
+		jobName,
+		configPath,
+		changedFiles,
+		changedFilesSpecified,
+		verbose,
+		failFast,
+		isTTY,
+		c,
+	} = options;
 
 	const gitRoot = await GitUtil.getGitRoot();
+	const normalizedChangedFiles = normalizeChangedFiles(
+		changedFiles,
+		process.cwd(),
+		gitRoot,
+	);
 	const config = await loadConfig(configPath, gitRoot);
 	const workflow = config.workflows[jobName];
 
@@ -264,6 +295,9 @@ export async function handleRun(options: HandleRunOptions): Promise<number> {
 		c("dim", `Branch: ${currentBranch}${inWorktree ? " (worktree)" : ""}`),
 	);
 	console.log(c("dim", `Steps: ${steps.length}`));
+	if (changedFilesSpecified) {
+		console.log(c("dim", `Changed files: ${normalizedChangedFiles.length}`));
+	}
 	console.log();
 
 	// Create progress printer for centralized TTY display
@@ -271,6 +305,8 @@ export async function handleRun(options: HandleRunOptions): Promise<number> {
 
 	const ctx: RunContext = {
 		c,
+		changedFiles: normalizedChangedFiles,
+		changedFilesSpecified,
 		failFast,
 		gitRoot,
 		isTTY,
