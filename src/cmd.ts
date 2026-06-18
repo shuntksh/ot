@@ -143,4 +143,8 @@ async function main(): Promise<void> {
 	process.exit(exitCode);
 }
 
-main();
+main().catch((e) => {
+	const message = e instanceof Error ? e.message : String(e);
+	console.error(message.startsWith("Error:") ? message : `Error: ${message}`);
+	process.exit(1);
+});

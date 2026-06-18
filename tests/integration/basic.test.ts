@@ -70,6 +70,48 @@ describe("Integration: Basic Workflows", () => {
 		await project.cleanup();
 	});
 
+	test("should print invalid JSON errors without a stack trace", async () => {
+		const project = await createTestProject("basic-invalid-json");
+
+		await project.writeFile("workflows.json", '{"check":');
+
+		const result = await project.runCLI(["check"]);
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Invalid JSON in");
+		expect(result.stderr).not.toContain("at loadConfig");
+		expect(result.stderr).not.toContain("Bun v");
+
+		await project.cleanup();
+	});
+
+	test("should print semantic config errors with step paths", async () => {
+		const project = await createTestProject("basic-invalid-config");
+
+		await project.writeJson("workflows.json", {
+			check: {
+				steps: [
+					{
+						name: "lint",
+						cmd: "bun biome check --write",
+						cache: true,
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI(["check"]);
+
+		expect(result.exitCode).toBe(1);
+		expect(result.stderr).toContain("Invalid config in workflows.json");
+		expect(result.stderr).toContain("workflows.check.steps[0].cache");
+		expect(result.stderr).toContain("bun.cache");
+		expect(result.stderr).not.toContain("at loadConfig");
+		expect(result.stderr).not.toContain("Bun v");
+
+		await project.cleanup();
+	});
+
 	test("should run nested substeps sequentially when pararell is false", async () => {
 		const project = await createTestProject("basic-nested-sequential");
 
