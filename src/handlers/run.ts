@@ -2,7 +2,14 @@
  * Run handler - executes workflow steps with dependency resolution.
  */
 
-import type { ColorFn, RunContext, Step, StepResult, StepState } from "../mod";
+import type {
+	ColorFn,
+	NestedTask,
+	RunContext,
+	Step,
+	StepResult,
+	StepState,
+} from "../mod";
 
 import {
 	createProgressPrinter,
@@ -18,9 +25,147 @@ import {
 	shouldRunOnBranch,
 } from "../mod";
 
-async function runStep(step: Step, ctx: RunContext): Promise<StepResult> {
+type StepSchedulingMode = "parallel" | "sequential";
+
+type StepProgressUpdate = Partial<Pick<StepState, "duration" | "status">>;
+
+type StepProgressSink = {
+	readonly initialRender?: () => void;
+	readonly cleanup?: () => void;
+	readonly updateStep: (name: string, update: StepProgressUpdate) => void;
+};
+
+function getStepLabel(step: Step): string {
+	return step.displayName ?? step.name;
+}
+
+function hasSubsteps(step: Step): step is Step & { steps: readonly Step[] } {
+	return Array.isArray(step.steps);
+}
+
+function shouldRunSubstepsInParallel(step: Step): boolean {
+	return step.parallel ?? step.pararell ?? true;
+}
+
+function createNestedProgressSink(
+	parentStepName: string,
+	steps: readonly Step[],
+	printer: RunContext["printer"],
+): StepProgressSink | undefined {
+	if (!printer) return undefined;
+
+	let rendered = false;
+	const tasks = new Map<string, NestedTask>(
+		steps.map((step) => [
+			step.name,
+			{
+				id: step.name,
+				label: getStepLabel(step),
+				status: "pending",
+			},
+		]),
+	);
+
+	return {
+		initialRender: () => {
+			rendered = true;
+			printer.setNested(parentStepName, [...tasks.values()]);
+		},
+		updateStep: (name, update) => {
+			const task = tasks.get(name);
+			if (!task) return;
+			if (update.status !== undefined) task.status = update.status;
+			if (update.duration !== undefined) task.duration = update.duration;
+			if (rendered) {
+				printer.updateNested(parentStepName, name, update);
+			}
+		},
+	};
+}
+
+function formatSubstepOutput(states: readonly StepState[]): string {
+	if (states.length === 0) return "No substeps";
+
+	const passed = states.filter((s) => s.status === "done").length;
+	const failed = states.filter((s) => s.status === "failed").length;
+	const skipped = states.filter(
+		(s) => s.status === "skipped" || s.status === "pending",
+	).length;
+	const parts: string[] = [];
+	if (passed > 0) parts.push(`${passed} passed`);
+	if (failed > 0) parts.push(`${failed} failed`);
+	if (skipped > 0) parts.push(`${skipped} skipped`);
+
+	let output = `Substeps: ${parts.join(", ")}`;
+	const failedStates = states.filter((s) => s.status === "failed");
+	if (failedStates.length > 0) {
+		output += "\n\nErrors:";
+		for (const state of failedStates) {
+			output += `\n\n--- ${getStepLabel(state.step)} ---\n${state.output}`;
+		}
+	}
+
+	return output;
+}
+
+async function runSubsteps(
+	step: Step & { steps: readonly Step[] },
+	ctx: RunContext,
+	currentBranch: string,
+	inWorktree: boolean,
+): Promise<StepResult> {
+	const resultName = getStepLabel(step);
+	const startTime = performance.now();
+	let stepsToRun: Step[];
+
+	try {
+		const stepNames = step.steps.map((child) => child.name);
+		stepsToRun = resolveStepsWithDeps(step.steps, stepNames);
+	} catch (e) {
+		const duration = Math.round(performance.now() - startTime);
+		const message = e instanceof Error ? e.message : String(e);
+		return {
+			success: false,
+			output: message,
+			duration,
+			name: resultName,
+		};
+	}
+
+	const childCtx: RunContext = { ...ctx, printer: undefined };
+	const childStates = await runStepsWithDeps(
+		stepsToRun,
+		childCtx,
+		currentBranch,
+		inWorktree,
+		{
+			mode: shouldRunSubstepsInParallel(step) ? "parallel" : "sequential",
+			progress: createNestedProgressSink(step.name, stepsToRun, ctx.printer),
+		},
+	);
+	const duration = Math.round(performance.now() - startTime);
+	const success = !childStates.some((state) => state.status === "failed");
+
+	return {
+		success,
+		output: formatSubstepOutput(childStates),
+		duration,
+		name: resultName,
+	};
+}
+
+async function runStep(
+	step: Step,
+	ctx: RunContext,
+	currentBranch: string,
+	inWorktree: boolean,
+): Promise<StepResult> {
 	const resultName = step.displayName ?? step.name;
 	const stepChangedFilesMode = step.changedFiles ?? "ignore";
+
+	if (hasSubsteps(step)) {
+		return runSubsteps(step, ctx, currentBranch, inWorktree);
+	}
 
 	if (step.cmd) {
 		const result = await runCmdAction(step.cmd, {
@@ -129,8 +274,13 @@ async function runStepsWithDeps(
 	ctx: RunContext,
 	currentBranch: string,
 	inWorktree: boolean,
+	options: {
+		readonly mode?: StepSchedulingMode;
+		readonly progress?: StepProgressSink;
+	} = {},
 ): Promise<readonly StepState[]> {
-	const { printer } = ctx;
+	const progress = options.progress ?? ctx.printer;
+	const mode = options.mode ?? "parallel";
 	const states = new Map<string, StepState>();
 	const stepNames = new Set(steps.map((s) => s.name));
 
@@ -149,26 +299,15 @@ async function runStepsWithDeps(
 			step,
 		});
 		// Update printer with initial state
-		printer?.updateStep(step.name, { status });
+		progress?.updateStep(step.name, { status });
 	}
 
 	// Initial render
-	printer?.initialRender();
+	progress?.initialRender?.();
 
 	let hasFailed = false;
 	const completed = new Set<string>();
 	const running = new Map<string, Promise<StepResult>>();
-
-	const _canRun = (step: Step): boolean => {
-		for (const dep of step.dependsOn ?? []) {
-			if (!stepNames.has(dep)) continue;
-			const depState = states.get(dep);
-			if (depState?.status !== "done") {
-				return false;
-			}
-		}
-		return true;
-	};
 
 	const failures: StepResult[] = [];
 
@@ -178,7 +317,7 @@ async function runStepsWithDeps(
 			if (state?.status !== "pending") continue;
 			if (hasFailed && ctx.failFast) {
 				state.status = "skipped";
-				printer?.updateStep(step.name, { status: "skipped" });
+				progress?.updateStep(step.name, { status: "skipped" });
 				completed.add(step.name);
 				continue;
 			}
@@ -191,7 +330,7 @@ async function runStepsWithDeps(
 				depStates.some((s) => s?.status === "failed" || s?.status === "skipped")
 			) {
 				state.status = "skipped";
-				printer?.updateStep(step.name, { status: "skipped" });
+				progress?.updateStep(step.name, { status: "skipped" });
 				completed.add(step.name);
 				continue;
 			}
@@ -202,29 +341,32 @@ async function runStepsWithDeps(
 			}
 
 			state.status = "running";
-			printer?.updateStep(step.name, { status: "running" });
+			progress?.updateStep(step.name, { status: "running" });
 
-			const promise = runStep(step, ctx).then((result) => {
-				const state = states.get(step.name);
-				if (state) {
-					state.status = result.success ? "done" : "failed";
-					state.duration = result.duration;
-					state.output = result.output;
-				}
-				printer?.updateStep(step.name, {
-					status: result.success ? "done" : "failed",
-					duration: result.duration,
-				});
-				if (!result.success) {
-					hasFailed = true;
-					failures.push(result);
-				}
-				completed.add(step.name);
-				running.delete(step.name);
-				return result;
-			});
+			const promise = runStep(step, ctx, currentBranch, inWorktree).then(
+				(result) => {
+					const state = states.get(step.name);
+					if (state) {
+						state.status = result.success ? "done" : "failed";
+						state.duration = result.duration;
+						state.output = result.output;
+					}
+					progress?.updateStep(step.name, {
+						status: result.success ? "done" : "failed",
+						duration: result.duration,
+					});
+					if (!result.success) {
+						hasFailed = true;
+						failures.push(result);
+					}
+					completed.add(step.name);
+					running.delete(step.name);
+					return result;
+				},
+			);
 
 			running.set(step.name, promise);
+			if (mode === "sequential") break;
 		}
 
 		if (running.size > 0) {
@@ -235,7 +377,7 @@ async function runStepsWithDeps(
 	}
 
 	// Cleanup printer
-	printer?.cleanup();
+	progress?.cleanup?.();
 
 	if (!ctx.verbose) {
 		for (const failure of failures) {

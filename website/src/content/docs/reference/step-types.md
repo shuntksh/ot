@@ -84,3 +84,25 @@ successful run.
 - `^task` — Run task in all dependencies first
 - `task` — Run task in current package first
 - `pkg#task` — Run specific package's task first
+
+## Nested `steps`
+
+Group related steps under a parent step:
+
+```json
+{
+  "name": "quality",
+  "description": "Run quality checks",
+  "parallel": false,
+  "steps": [
+    { "name": "format", "cmd": "bun run format" },
+    { "name": "lint", "cmd": "bun run lint" },
+    { "name": "test", "cmd": "bun test", "dependsOn": ["lint"] }
+  ]
+}
+```
+
+Nested steps are shown under the parent step in progress output. By default,
+ready nested steps run in parallel. Set `parallel: false` to run one ready child
+at a time using the order from `steps`, while still honoring `dependsOn`.
+`pararell` is also accepted as a compatibility alias.

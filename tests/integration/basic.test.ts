@@ -60,6 +60,83 @@ describe("Integration: Basic Workflows", () => {
 		await project.cleanup();
 	});
 
+	test("should run nested substeps sequentially when pararell is false", async () => {
+		const project = await createTestProject("basic-nested-sequential");
+
+		await project.writeJson("workflows.json", {
+			nested: {
+				steps: [
+					{
+						name: "quality",
+						description: "Run quality checks",
+						pararell: false,
+						steps: [
+							{
+								name: "first",
+								cmd: "sleep 0.2; printf 'one\\n' > order.txt",
+							},
+							{
+								name: "second",
+								cmd: "test -f order.txt && printf 'two\\n' >> order.txt",
+							},
+							{
+								name: "show",
+								cmd: "cat order.txt",
+								dependsOn: ["second"],
+							},
+						],
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI(["nested", "-v"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toContain("one\ntwo");
+		expect(result.output).toContain("All 1 steps passed");
+
+		await project.cleanup();
+	});
+
+	test("should respect dependencies inside sequential nested substeps", async () => {
+		const project = await createTestProject("basic-nested-deps");
+
+		await project.writeJson("workflows.json", {
+			nested: {
+				steps: [
+					{
+						name: "quality",
+						pararell: false,
+						steps: [
+							{
+								name: "first",
+								cmd: "printf 'first\\n' >> dep-order.txt",
+								dependsOn: ["second"],
+							},
+							{
+								name: "second",
+								cmd: "printf 'second\\n' > dep-order.txt",
+							},
+							{
+								name: "show",
+								cmd: "cat dep-order.txt",
+								dependsOn: ["first"],
+							},
+						],
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI(["nested", "-v"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.output).toContain("second\nfirst");
+
+		await project.cleanup();
+	});
+
 	test("should pass changed files to command steps", async () => {
 		const project = await createTestProject("basic-changed-files");
 

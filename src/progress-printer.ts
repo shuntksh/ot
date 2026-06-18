@@ -13,7 +13,8 @@ import type { ColorFn, StepStatus } from "./types";
  */
 export type NestedTask = {
 	readonly id: string;
-	status: "pending" | "running" | "done" | "failed";
+	readonly label?: string;
+	status: "pending" | "running" | "done" | "failed" | "skipped";
 	duration?: number;
 	startedAt?: number;
 };
@@ -83,18 +84,21 @@ function formatStepLine(
  */
 function formatNestedLine(task: NestedTask, c: ColorFn, now: number): string {
 	const duration = formatDuration(task.duration);
+	const label = task.label ?? task.id;
 
 	switch (task.status) {
 		case "pending":
-			return `      ${c("dim", "○")} ${c("dim", task.id)}`;
+			return `      ${c("dim", "○")} ${c("dim", label)}`;
 		case "running":
-			return `      ${c("cyan", "◐")} ${c("cyan", task.id)} ${c("dim", formatElapsed(task.startedAt, now))}`;
+			return `      ${c("cyan", "◐")} ${c("cyan", label)} ${c("dim", formatElapsed(task.startedAt, now))}`;
 		case "done":
-			return `      ${c("green", "✓")} ${task.id} ${c("dim", duration)}`;
+			return `      ${c("green", "✓")} ${label} ${c("dim", duration)}`;
 		case "failed":
-			return `      ${c("red", "✗")} ${task.id} ${c("dim", duration)}`;
+			return `      ${c("red", "✗")} ${label} ${c("dim", duration)}`;
+		case "skipped":
+			return `      ${c("yellow", "○")} ${c("yellow", label)} ${c("dim", "skipped")}`;
 		default:
-			return `      ${c("dim", "○")} ${task.id}`;
+			return `      ${c("dim", "○")} ${label}`;
 	}
 }
 

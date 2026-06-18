@@ -52,10 +52,7 @@ export const BunActionSchema = z.object({
 	dependsOn: z.array(z.string()).optional(),
 });
 
-/**
- * A single step in a workflow.
- */
-export const StepSchema = z.object({
+const StepBaseSchema = z.object({
 	name: z.string(),
 	displayName: z.string().optional(),
 	description: z.string().optional(),
@@ -63,10 +60,27 @@ export const StepSchema = z.object({
 	branches: z.array(z.string()).optional(),
 	/** How to pass CLI-provided changed files to this step. */
 	changedFiles: ChangedFilesModeSchema.optional(),
+	/** Run nested substeps concurrently when possible. */
+	parallel: z.boolean().optional(),
+	/** @deprecated Use parallel. Kept for compatibility with existing configs. */
+	pararell: z.boolean().optional(),
 	cmd: z.string().optional(),
 	"worktree:cp": WorktreeCpActionSchema.optional(),
 	bun: BunActionSchema.optional(),
 });
+
+export type Step = z.infer<typeof StepBaseSchema> & {
+	readonly steps?: readonly Step[];
+};
+
+/**
+ * A single step in a workflow.
+ */
+export const StepSchema: z.ZodType<Step> = z.lazy(() =>
+	StepBaseSchema.extend({
+		steps: z.array(StepSchema).optional(),
+	}),
+);
 
 /**
  * A workflow can be an array of steps or an object with a steps property.
@@ -120,7 +134,6 @@ export type WorktreeCpAction = z.infer<typeof WorktreeCpActionSchema>;
 export type ChangedFilesMode = z.infer<typeof ChangedFilesModeSchema>;
 export type BunCache = z.infer<typeof BunCacheSchema>;
 export type BunAction = z.infer<typeof BunActionSchema>;
-export type Step = z.infer<typeof StepSchema>;
 export type Workflow = z.infer<typeof WorkflowSchema>;
 export type WorktreeHook = z.infer<typeof WorktreeHookSchema>;
 export type WorktreeConfig = z.infer<typeof WorktreeConfigSchema>;
