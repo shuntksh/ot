@@ -42,6 +42,7 @@ Config is discovered from (in order):
           "bun": {
             "script": "test",
             "dependsOn": ["^build"],
+            "parallel": 5,
             "hardTimeoutSeconds": 60
           }
         }
@@ -70,6 +71,13 @@ Ready substeps run in parallel by default. Set `parallel: false` to run one
 ready child at a time in the order from `steps`, while still honoring
 `dependsOn`. Outside the parent group, address a nested step as `parent.child`.
 `pararell` is also accepted as a compatibility alias.
+
+Workspace `bun` actions also support `parallel` to control package-script
+concurrency inside each dependency layer. Omit it or set `parallel: true` for
+the default limit of 5, set a positive integer for a custom limit, set
+`parallel: false` to run package scripts sequentially, or set `parallel: -1` to
+run every ready package script in the current dependency layer at once.
+`pararell` is accepted as an alias.
 
 ## Worktree Configuration
 

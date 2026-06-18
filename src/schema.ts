@@ -34,6 +34,12 @@ export const BunCacheSchema = z.union([
 	}),
 ]);
 
+export const BunParallelSchema = z.union([
+	z.boolean(),
+	z.literal(-1),
+	z.number().int().positive(),
+]);
+
 /**
  * Bun action configuration for workspace-aware script execution.
  */
@@ -50,6 +56,10 @@ export const BunActionSchema = z.object({
 	timeout: z.number().optional(),
 	/** Turborepo-style dependencies: ^task, task, package#task */
 	dependsOn: z.array(z.string()).optional(),
+	/** Maximum package scripts to run concurrently per dependency layer. */
+	parallel: BunParallelSchema.optional(),
+	/** @deprecated Use parallel. Kept for compatibility with existing configs. */
+	pararell: BunParallelSchema.optional(),
 });
 
 const StepBaseSchema = z.object({
@@ -133,6 +143,7 @@ export const ConfigSchema = z.object({
 export type WorktreeCpAction = z.infer<typeof WorktreeCpActionSchema>;
 export type ChangedFilesMode = z.infer<typeof ChangedFilesModeSchema>;
 export type BunCache = z.infer<typeof BunCacheSchema>;
+export type BunParallel = z.infer<typeof BunParallelSchema>;
 export type BunAction = z.infer<typeof BunActionSchema>;
 export type Workflow = z.infer<typeof WorkflowSchema>;
 export type WorktreeHook = z.infer<typeof WorktreeHookSchema>;

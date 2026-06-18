@@ -3,6 +3,70 @@ import { join } from "node:path";
 import { createTestProject } from "./utils";
 
 describe("Integration: Workspace Actions", () => {
+	async function writeConcurrencyFixture(
+		project: Awaited<ReturnType<typeof createTestProject>>,
+	): Promise<void> {
+		await project.writeJson("package.json", {
+			name: "root",
+			workspaces: ["packages/*"],
+		});
+		await project.writeFile(
+			"record-concurrency.ts",
+			`
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+const root = resolve(process.cwd(), "../..");
+const activePath = join(root, "active.txt");
+const maxPath = join(root, "max.txt");
+const lockPath = join(root, "counter.lock");
+
+async function withLock(fn: () => void): Promise<void> {
+	while (true) {
+		try {
+			mkdirSync(lockPath);
+			break;
+		} catch {
+			await Bun.sleep(5);
+		}
+	}
+
+	try {
+		fn();
+	} finally {
+		rmSync(lockPath, { recursive: true, force: true });
+	}
+}
+
+function readNumber(path: string): number {
+	return existsSync(path) ? Number(readFileSync(path, "utf8")) : 0;
+}
+
+await withLock(() => {
+	const active = readNumber(activePath) + 1;
+	const max = Math.max(readNumber(maxPath), active);
+	writeFileSync(activePath, String(active));
+	writeFileSync(maxPath, String(max));
+});
+
+await Bun.sleep(150);
+
+await withLock(() => {
+	writeFileSync(activePath, String(readNumber(activePath) - 1));
+});
+
+console.log("done");
+`,
+		);
+
+		for (const name of ["a", "b", "c", "d"]) {
+			await project.writeJson(`packages/${name}/package.json`, {
+				name: `pkg-${name}`,
+				scripts: { build: "bun ../../record-concurrency.ts" },
+			});
+		}
+	}
+
 	test("should run scripts across workspace packages", async () => {
 		const project = await createTestProject("workspace-basic");
 
@@ -42,6 +106,75 @@ describe("Integration: Workspace Actions", () => {
 		expect(result.exitCode).toBe(0);
 		expect(result.output).toContain("[pkg-a] building pkg-a");
 		expect(result.output).toContain("[pkg-b] building pkg-b");
+
+		await project.cleanup();
+	});
+
+	test("should run workspace scripts sequentially when bun pararell is false", async () => {
+		const project = await createTestProject("workspace-pararell-false");
+		await writeConcurrencyFixture(project);
+
+		await project.writeJson("workflows.json", {
+			build: {
+				steps: [
+					{
+						name: "build",
+						bun: { script: "build", pararell: false },
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI(["build", "-v"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(await Bun.file(join(project.dir, "max.txt")).text()).toBe("1");
+
+		await project.cleanup();
+	});
+
+	test("should limit workspace script concurrency with bun pararell number", async () => {
+		const project = await createTestProject("workspace-pararell-number");
+		await writeConcurrencyFixture(project);
+
+		await project.writeJson("workflows.json", {
+			build: {
+				steps: [
+					{
+						name: "build",
+						bun: { script: "build", pararell: 2 },
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI(["build", "-v"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(await Bun.file(join(project.dir, "max.txt")).text()).toBe("2");
+
+		await project.cleanup();
+	});
+
+	test("should run all ready workspace scripts when bun pararell is -1", async () => {
+		const project = await createTestProject("workspace-pararell-all");
+		await writeConcurrencyFixture(project);
+
+		await project.writeJson("workflows.json", {
+			build: {
+				steps: [
+					{
+						name: "build",
+						bun: { script: "build", pararell: -1 },
+					},
+				],
+			},
+		});
+
+		const result = await project.runCLI(["build", "-v"]);
+
+		expect(result.exitCode).toBe(0);
+		expect(await Bun.file(join(project.dir, "max.txt")).text()).toBe("4");
 
 		await project.cleanup();
 	});

@@ -57,6 +57,14 @@ ${c("dim", "BUN CACHE:")}
   Cache keys include package inputs, root/global inputs, the package script
   command, Bun version, action settings, and changed-file argv when appended.
 
+${c("dim", "BUN WORKSPACE PARALLELISM:")}
+  Workspace bun actions run up to 5 package scripts per dependency layer by
+  default. Use bun.parallel or bun.pararell to control that limit:
+    true or omitted: 5
+    false: sequential
+    -1: all ready package scripts at once
+    number: max concurrent package scripts
+
 ${c("dim", "NESTED STEPS:")}
   Use steps: [...] on a parent step to group related substeps.
   Nested output is displayed under the parent step.

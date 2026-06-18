@@ -50,6 +50,7 @@ Run scripts across workspace packages with dependency ordering (TurboRepo-style)
   "bun": {
     "script": "test",
     "dependsOn": ["^build"],
+    "parallel": 5,
     "hardTimeoutSeconds": 30,
     "cache": true
   }
@@ -58,6 +59,24 @@ Run scripts across workspace packages with dependency ordering (TurboRepo-style)
 
 `hardTimeoutSeconds` is optional. When set, Ot kills the package script if it
 runs longer than the configured number of seconds.
+
+Workspace `bun` steps run up to 5 package scripts concurrently per dependency
+layer by default. Set `parallel` to control that limit:
+
+```json
+{
+  "name": "lint",
+  "bun": {
+    "script": "lint",
+    "parallel": 2
+  }
+}
+```
+
+Use `parallel: false` to run package scripts one at a time. Use `parallel: -1`
+to run every ready package script in the current dependency layer at once.
+`parallel: true` and an omitted value both use the default limit of 5.
+`pararell` is also accepted as a compatibility alias.
 
 `changedFiles: "append"` appends package-scoped changed files to each package
 script. `cache: true` enables local content-hash success caching for package

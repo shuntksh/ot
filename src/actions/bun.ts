@@ -57,6 +57,38 @@ function getHardTimeoutMs(action: BunAction): number | undefined {
 	return action.timeout;
 }
 
+function getParallelLimit(action: BunAction): number {
+	const setting = action.parallel ?? action.pararell ?? true;
+	if (setting === false) return 1;
+	if (setting === true) return 5;
+	if (setting === -1) return Number.POSITIVE_INFINITY;
+	if (!Number.isFinite(setting) || setting < 1) return 1;
+	return Math.floor(setting);
+}
+
+async function mapWithConcurrency<T, R>(
+	items: readonly T[],
+	limit: number,
+	fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+	const results: R[] = new Array(items.length);
+	let nextIndex = 0;
+
+	async function worker(): Promise<void> {
+		while (nextIndex < items.length) {
+			const index = nextIndex;
+			nextIndex++;
+			const item = items[index];
+			if (item === undefined) continue;
+			results[index] = await fn(item);
+		}
+	}
+
+	const workerCount = Math.min(limit, items.length);
+	await Promise.all(Array.from({ length: workerCount }, () => worker()));
+	return results;
+}
+
 function killProcessTree(proc: Bun.Subprocess<"ignore", "pipe", "pipe">): void {
 	if (process.platform !== "win32") {
 		try {
@@ -286,6 +318,7 @@ export async function runBunAction(
 
 		// Topologically sort for execution order
 		const layers = topologicalSort(allNodes);
+		const parallelLimit = getParallelLimit(action);
 
 		// Set up nested tasks in printer if available
 		if (printer && stepName) {
@@ -303,50 +336,56 @@ export async function runBunAction(
 		for (const layer of layers) {
 			if (!layer || layer.length === 0) continue;
 
-			// Mark as running in printer
-			if (printer && stepName) {
-				for (const node of layer) {
-					printer.updateNested(stepName, `${node.packageName}#${node.script}`, {
-						status: "running",
-					});
-				}
-			}
+			const layerResults = await mapWithConcurrency(
+				layer,
+				parallelLimit,
+				async (node) => {
+					if (printer && stepName) {
+						printer.updateNested(
+							stepName,
+							`${node.packageName}#${node.script}`,
+							{
+								status: "running",
+							},
+						);
+					}
 
-			// Run all tasks in this layer in parallel
-			const layerPromises = layer.map(async (node) => {
-				const packageChangedFiles = scopeChangedFilesToDirectory(
-					options.changedFiles ?? [],
-					options.gitRoot,
-					node.packagePath,
-				);
-				const scriptCommand =
-					packageMap.get(node.packageName)?.scripts[node.script] ?? "";
-				const result = await runPackageScript(
-					action,
-					node,
-					scriptCommand,
-					packageChangedFiles,
-					options.gitRoot,
-					getHardTimeoutMs(action),
-					options.verbose,
-					{
-						appendChangedFiles: options.appendChangedFiles,
-						changedFilesSpecified: options.changedFilesSpecified,
-					},
-				);
+					const packageChangedFiles = scopeChangedFilesToDirectory(
+						options.changedFiles ?? [],
+						options.gitRoot,
+						node.packagePath,
+					);
+					const scriptCommand =
+						packageMap.get(node.packageName)?.scripts[node.script] ?? "";
+					const result = await runPackageScript(
+						action,
+						node,
+						scriptCommand,
+						packageChangedFiles,
+						options.gitRoot,
+						getHardTimeoutMs(action),
+						options.verbose,
+						{
+							appendChangedFiles: options.appendChangedFiles,
+							changedFilesSpecified: options.changedFilesSpecified,
+						},
+					);
 
-				// Update printer with result
-				if (printer && stepName) {
-					printer.updateNested(stepName, `${node.packageName}#${node.script}`, {
-						status: result.success ? "done" : "failed",
-						duration: result.duration,
-					});
-				}
+					// Update printer with result
+					if (printer && stepName) {
+						printer.updateNested(
+							stepName,
+							`${node.packageName}#${node.script}`,
+							{
+								status: result.success ? "done" : "failed",
+								duration: result.duration,
+							},
+						);
+					}
 
-				return result;
-			});
-
-			const layerResults = await Promise.all(layerPromises);
+					return result;
+				},
+			);
 
 			for (const result of layerResults) {
 				results.push(result);

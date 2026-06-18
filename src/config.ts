@@ -33,6 +33,8 @@ const BUN_FIELDS = new Set([
 	"hardTimeoutSeconds",
 	"timeout",
 	"dependsOn",
+	"parallel",
+	"pararell",
 ]);
 
 const WORKTREE_CP_FIELDS = new Set(["from", "files", "allowMissing"]);
@@ -102,6 +104,30 @@ function validateBunAction(
 	if (value.dependsOn !== undefined) {
 		validateStringArray(value.dependsOn, [...path, "dependsOn"], issues);
 	}
+	if (value.parallel !== undefined) {
+		validateBunParallel(value.parallel, [...path, "parallel"], issues);
+	}
+	if (value.pararell !== undefined) {
+		validateBunParallel(value.pararell, [...path, "pararell"], issues);
+	}
+}
+
+function validateBunParallel(
+	value: unknown,
+	path: readonly PathPart[],
+	issues: string[],
+): void {
+	if (typeof value === "boolean") return;
+	if (
+		typeof value === "number" &&
+		Number.isInteger(value) &&
+		(value === -1 || value > 0)
+	) {
+		return;
+	}
+	issues.push(
+		`${formatPath(path)} must be true, false, -1, or a positive integer.`,
+	);
 }
 
 function validateWorktreeCpAction(
